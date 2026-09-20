@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/l10n/locale_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/currency_formatter.dart';
+import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';
 import '../property_detail/property_detail_screen.dart';
 
-class PostSuccessScreen extends StatefulWidget {
+class PostSuccessScreen extends ConsumerStatefulWidget {
   final Property property;
 
   const PostSuccessScreen({super.key, required this.property});
 
   @override
-  State<PostSuccessScreen> createState() => _PostSuccessScreenState();
+  ConsumerState<PostSuccessScreen> createState() => _PostSuccessScreenState();
 }
 
-class _PostSuccessScreenState extends State<PostSuccessScreen> with SingleTickerProviderStateMixin {
+class _PostSuccessScreenState extends ConsumerState<PostSuccessScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -38,6 +43,11 @@ class _PostSuccessScreenState extends State<PostSuccessScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final priceStr = CurrencyFormatter.formatIndianPrice(
+      widget.property.price,
+      isRental: widget.property.isRental,
+    );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -48,142 +58,205 @@ class _PostSuccessScreenState extends State<PostSuccessScreen> with SingleTicker
             children: [
               const Spacer(),
 
-              // Animated Success Checkmark Ring
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.check_rounded,
-                      size: 56,
-                      color: AppColors.primary,
-                    ),
-                  ),
+              // Animated Success Title
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: Text(
+                  ref.tr('post_success'),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.h1.copyWith(fontSize: 22),
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    Text(
-                      'Property Listed Successfully!',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.h1.copyWith(fontSize: 23),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Your property has been saved to your offline device storage and is now visible under My Ads.',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Property Summary Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.border, width: 1),
-                        boxShadow: AppColors.cardShadow,
-                      ),
-                      child: Row(
+              // Property Preview Card
+              ScaleTransition(
+                scale: _scaleAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppColors.cardShadow,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Property Image
+                      Stack(
                         children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.home_work_rounded, color: AppColors.primary),
+                          PropertyVisual(
+                            propertyType: widget.property.propertyType,
+                            visualIndex: 0,
+                            customImageBase64: widget.property.customImageBase64,
+                            height: 180,
+                            width: double.infinity,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.property.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.h4.copyWith(fontSize: 15),
+                          // Category Badge
+                          Positioned(
+                            top: 10,
+                            left: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                widget.property.propertyType,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.property.location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.bodySmall,
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      // Property Info
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.property.title,
+                              style: AppTextStyles.h4.copyWith(fontSize: 15),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on, size: 14, color: AppColors.primary),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    widget.property.location,
+                                    style: AppTextStyles.bodySmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Specs Row
+                            Row(
+                              children: [
+                                if (widget.property.bedrooms != null) ...[
+                                  _buildSpecChip('${widget.property.bedrooms} BHK'),
+                                  const SizedBox(width: 6),
+                                ],
+                                _buildSpecChip('${widget.property.areaSqFt} ச.அ'),
+                                const SizedBox(width: 6),
+                                if (widget.property.superBuiltUpSqFt != null)
+                                  _buildSpecChip('${widget.property.superBuiltUpSqFt} ச.அ'),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Price
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '₹ $priceStr',
+                                  style: AppTextStyles.priceLarge.copyWith(fontSize: 20),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'விலை பேசிக்கலாம்',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // View Details Link
+                            InkWell(
+                              onTap: () {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PropertyDetailScreen(
+                                      propertyId: widget.property.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'விவரம் →',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
               ),
 
               const Spacer(),
 
-              // Action buttons
+              // View in My Ads Button
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Navigate to Property Detail
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PropertyDetailScreen(propertyId: widget.property.id),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
-                  child: const Text('View Published Property'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: TextButton(
-                  onPressed: () {
-                    // Pop back to root
-                    Navigator.pop(context);
-                  },
                   child: Text(
-                    'Back to Dashboard',
-                    style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary),
+                    ref.tr('btn_view_my_ads'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpecChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
         ),
       ),
     );

@@ -128,7 +128,7 @@ class _PostAdWizardState extends ConsumerState<PostAdWizard> {
   Future<void> _submitAd() async {
     final title = _titleController.text.trim().isNotEmpty
         ? _titleController.text.trim()
-        : 'Prime ${_selectedUnit} ${_selectedCategory} in Tenkasi';
+        : 'Prime $_selectedUnit $_selectedCategory in Tenkasi';
     final desc = _descController.text.trim().isNotEmpty
         ? _descController.text.trim()
         : 'Excellent DTCP approved property located in prime Tenkasi area with good road access and sweet water.';

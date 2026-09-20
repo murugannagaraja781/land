@@ -9,8 +9,8 @@ class ApiConfig extends ChangeNotifier {
   static final ApiConfig instance = ApiConfig._();
   ApiConfig._();
 
-  String _serverUrl = 'http://127.0.0.1:8000/api';
-  bool _isOnlineMode = false; // Default: offline-first demo mode, can toggle to live server
+  String _serverUrl = 'https://tenkasidreams.com/api';
+  bool _isOnlineMode = true; // Connected directly to live production server
   bool _isCheckingConnection = false;
   String? _lastPingStatus;
   int? _lastPingLatencyMs;
@@ -24,8 +24,8 @@ class ApiConfig extends ChangeNotifier {
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _serverUrl = prefs.getString(_keyServerUrl) ?? 'http://127.0.0.1:8000/api';
-      _isOnlineMode = prefs.getBool(_keyOnlineMode) ?? false;
+      _serverUrl = prefs.getString(_keyServerUrl) ?? 'https://tenkasidreams.com/api';
+      _isOnlineMode = prefs.getBool(_keyOnlineMode) ?? true;
       notifyListeners();
     } catch (e) {
       debugPrint('ApiConfig init error: $e');

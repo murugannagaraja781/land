@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:real_estate_app/core/utils/currency_formatter.dart';
+import 'package:real_estate_app/core/utils/land_units.dart';
 import 'package:real_estate_app/data/local/local_storage_service.dart';
 import 'package:real_estate_app/data/repositories/property_repository.dart';
 import 'package:real_estate_app/data/repositories/chat_repository.dart';
 import 'package:real_estate_app/models/property.dart';
 import 'package:real_estate_app/models/agent.dart';
+import 'package:real_estate_app/models/buyer_requirement.dart';
 
 void main() {
   group('CurrencyFormatter Tests', () {
@@ -28,6 +30,41 @@ void main() {
 
     test('calculates and formats price per sq.ft correctly', () {
       expect(CurrencyFormatter.formatPerSqFt(8800000, 2150), '₹4,093 / sq.ft');
+    });
+
+    test('converts and formats Kuzhi and Cent land units correctly', () {
+      // 1 Kuzhi = 144 sq ft
+      expect(LandUnitConverter.toSqFt(10, 'குழி (Kuzhi)'), 1440);
+      expect(LandUnitConverter.fromSqFt(1440, 'குழி (Kuzhi)'), 10.0);
+
+      // 10 Cents = 4356 sq ft
+      expect(LandUnitConverter.toSqFt(10, 'Cents'), 4356);
+
+      // 1 Acre = 43560 sq ft
+      expect(LandUnitConverter.toSqFt(1, 'Acres'), 43560);
+
+      // 1 Hectare = 107639.1 sq ft
+      expect(LandUnitConverter.toSqFt(1, 'ஹெக்டேர் (Hectare)'), closeTo(107639.1, 0.5));
+
+      // Universal 2-way conversion matrix
+      // 1 Hectare to Acres -> ~2.471 Acres
+      expect(LandUnitConverter.convert(1, fromUnit: 'ஹெக்டேர் (Hectare)', toUnit: 'Acres'), closeTo(2.471, 0.01));
+
+      // 1 Acre to Cents -> 100 Cents
+      expect(LandUnitConverter.convert(1, fromUnit: 'Acres', toUnit: 'Cents'), closeTo(100.0, 0.01));
+
+      // 1 Cent to Sq.Ft -> 435.6 Sq.Ft
+      expect(LandUnitConverter.convert(1, fromUnit: 'Cents', toUnit: 'Sq.Ft'), closeTo(435.6, 0.01));
+
+      // Display Area formatting
+      expect(
+        LandUnitConverter.formatDisplayArea(sqFt: 4356, landUnit: 'Cents', landUnitValue: 10),
+        '10.0 Cent',
+      );
+      expect(
+        LandUnitConverter.formatDisplayArea(sqFt: 1440, landUnit: 'குழி (Kuzhi)', landUnitValue: 10),
+        '10.0 குழி',
+      );
     });
   });
 
@@ -85,6 +122,14 @@ void main() {
       final threeBhk = propRepo.searchAndFilter(bhkList: ['3 BHK']);
       expect(threeBhk, isNotEmpty);
       expect(threeBhk.every((p) => p.bedrooms == 3), isTrue);
+
+      // Verify all 6 core categories return matching properties
+      expect(propRepo.getPropertiesByCategory('house'), isNotEmpty);
+      expect(propRepo.getPropertiesByCategory('land'), isNotEmpty);
+      expect(propRepo.getPropertiesByCategory('farmland'), isNotEmpty);
+      expect(propRepo.getPropertiesByCategory('shop'), isNotEmpty);
+      expect(propRepo.getPropertiesByCategory('apartment'), isNotEmpty);
+      expect(propRepo.getPropertiesByCategory('rental'), isNotEmpty);
     });
 
     test('adds user property to My Ads and persists', () async {
@@ -103,8 +148,8 @@ void main() {
           id: 'user_agent',
           name: 'Murugan N (You)',
           agencyName: 'Direct Owner',
-          phone: '+91 98401 98765',
-          email: 'murugan.properties@gmail.com',
+          phone: '+91 98941 74944',
+          email: 'tenkasidreams@gmail.com',
           avatarKey: 'avatar_user',
           rating: 5.0,
           reviewsCount: 12,
@@ -154,6 +199,47 @@ void main() {
       final updatedConvs = chatRepo.getConversations();
       final updatedConv = updatedConvs.firstWhere((c) => c.id == firstConv.id);
       expect(updatedConv.messages.length, greaterThan(initialCount));
+    });
+
+    test('stores and retrieves Buyer Requirements (மக்களின் தேவை)', () async {
+      final reqs = storage.getBuyerRequirements();
+      expect(reqs, isNotEmpty);
+      expect(reqs.length, greaterThanOrEqualTo(4));
+
+      final newReq = BuyerRequirement(
+        id: 'req_test_1',
+        userName: 'Praveen K',
+        userPhone: '9840188899',
+        propertyType: 'Shop / Office',
+        targetLocation: 'Tenkasi Railway Feeder Road',
+        budgetMin: 15000,
+        budgetMax: 25000,
+        preferredSize: '400 Sq.Ft',
+        facingPreference: 'North',
+        description: 'Need shop with 3-phase EB and rolling shutter for pharmacy.',
+        postedDate: DateTime.now(),
+        isUserPosted: true,
+      );
+
+      await storage.addBuyerRequirement(newReq);
+      final updatedReqs = storage.getBuyerRequirements();
+      expect(updatedReqs.any((r) => r.id == 'req_test_1'), isTrue);
+
+      final fetched = updatedReqs.firstWhere((r) => r.id == 'req_test_1');
+      expect(fetched.userName, 'Praveen K');
+      expect(fetched.propertyType, 'Shop / Office');
+      expect(fetched.budgetMax, 25000);
+      expect(fetched.isUserPosted, isTrue);
+    });
+
+    test('commercial shop properties include handwritten note specifications', () {
+      final properties = propRepo.getAllProperties();
+      final shop = properties.firstWhere((p) => p.rentalSubType == 'Commercial / Shop' || p.commercialAreaType != null);
+      
+      expect(shop.commercialAreaType, isNotNull);
+      expect(shop.powerPhase, isNotNull);
+      expect(shop.hasShutter, isNotNull);
+      expect(shop.hasWaterSupply, isNotNull);
     });
   });
 }

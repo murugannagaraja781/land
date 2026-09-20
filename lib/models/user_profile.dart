@@ -5,6 +5,7 @@ class UserProfile {
   final String city;
   final String avatarKey;
   final bool isVerified;
+  final bool isLoggedIn;
   final String memberSince;
   final double completionPercentage;
 
@@ -15,6 +16,7 @@ class UserProfile {
     required this.city,
     this.avatarKey = 'avatar_user',
     this.isVerified = true,
+    this.isLoggedIn = false,
     this.memberSince = 'March 2024',
     this.completionPercentage = 0.85,
   });
@@ -26,6 +28,7 @@ class UserProfile {
     String? city,
     String? avatarKey,
     bool? isVerified,
+    bool? isLoggedIn,
     String? memberSince,
     double? completionPercentage,
   }) {
@@ -36,6 +39,7 @@ class UserProfile {
       city: city ?? this.city,
       avatarKey: avatarKey ?? this.avatarKey,
       isVerified: isVerified ?? this.isVerified,
+      isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       memberSince: memberSince ?? this.memberSince,
       completionPercentage: completionPercentage ?? this.completionPercentage,
     );
@@ -49,6 +53,7 @@ class UserProfile {
       'city': city,
       'avatarKey': avatarKey,
       'isVerified': isVerified,
+      'isLoggedIn': isLoggedIn,
       'memberSince': memberSince,
       'completionPercentage': completionPercentage,
     };
@@ -56,14 +61,15 @@ class UserProfile {
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     return UserProfile(
-      name: map['name'] ?? 'Murugan Nagarajan',
-      phone: map['phone'] ?? '+91 98401 98765',
-      email: map['email'] ?? 'murugan.properties@gmail.com',
-      city: map['city'] ?? 'Porur, Chennai',
+      name: map['name'] ?? 'விருந்தினர் (Guest User)',
+      phone: map['phone'] ?? '',
+      email: map['email'] ?? '',
+      city: map['city'] ?? 'Tenkasi',
       avatarKey: map['avatarKey'] ?? 'avatar_user',
-      isVerified: map['isVerified'] ?? true,
+      isVerified: map['isVerified'] ?? false,
+      isLoggedIn: map['isLoggedIn'] ?? false,
       memberSince: map['memberSince'] ?? 'March 2024',
-      completionPercentage: (map['completionPercentage'] as num?)?.toDouble() ?? 0.85,
+      completionPercentage: (map['completionPercentage'] as num?)?.toDouble() ?? 0.50,
     );
   }
 }

@@ -5,7 +5,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
-import '../../core/utils/land_units.dart';
 import '../../core/widgets/animated_favorite_btn.dart';
 import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';
@@ -64,7 +63,7 @@ class FeaturedPropertyCard extends ConsumerWidget {
                     propertyType: property.propertyType,
                     visualIndex: property.id.hashCode.abs() % 4,
                     customImageBase64: property.customImageBase64,
-                    height: 155,
+                    height: 125,
                     width: width,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
                   ),
@@ -192,7 +191,9 @@ class FeaturedPropertyCard extends ConsumerWidget {
                     const SizedBox(height: 6),
 
                     // Area & Facing Chip
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -209,8 +210,7 @@ class FeaturedPropertyCard extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        if (property.facing.isNotEmpty) ...[
-                          const SizedBox(width: 6),
+                        if (property.facing.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -227,7 +227,6 @@ class FeaturedPropertyCard extends ConsumerWidget {
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
 

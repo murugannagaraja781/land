@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitleDisplay">Tenkasi Dreams Land - Super Admin Portal | சூப்பர் அட்மின்</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ==================== 1. LOGIN SCREEN ==================== -->
+  <div id="loginView" class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo" id="loginLogoContainer">🏛️</div>
+        <h1 class="login-title" id="loginTitleDisplay">Tenkasi Dreams Land</h1>
+        <p class="login-subtitle" id="loginSubtitleDisplay">சூப்பர் அட்மின் கட்டுப்பாட்டு தளம் (Super Admin Portal)</p>
+        <span class="badge-super-admin">👑 Super Admin Access</span>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="loginUsername">பயனர்பெயர் (Username / Login ID)</label>
+          <input type="text" id="loginUsername" class="form-control" placeholder="admin3" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">கடவுச்சொல் (Password)</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 10px;">
+          🚀 உள்நுழைக (Super Admin Login)
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== 2. MAIN DASHBOARD VIEW ==================== -->
+  <div id="dashboardView" class="app-container" style="display: none;">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand-section">
+        <div class="brand-icon" id="sidebarLogoContainer">🏛️</div>
+        <div>
+          <div class="brand-name" id="sidebarBrandName">Tenkasi Dreams</div>
+          <div class="brand-tag" id="sidebarBrandTag">SUPER ADMIN PORTAL</div>
+        </div>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active">
+          <a class="nav-link" data-tab="overview">
+            <span class="icon">📊</span>
+            <span>முகப்பு (Dashboard)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="properties">
+            <span class="icon">🏡</span>
+            <span>விளம்பரங்கள் (Properties)</span>
+            <span class="badge badge-pending" id="sidebarPendingBadge" style="margin-left:auto; display:none; font-size:11px; padding:2px 7px;">0</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="requirements">
+            <span class="icon">📋</span>
+            <span>மக்களின் தேவை (Buyer Board)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="payments">
+            <span class="icon">💰</span>
+            <span>வருவாய் & கட்டணங்கள் (Revenue)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="calculator">
+            <span class="icon">📐</span>
+            <span>நில அளவை மாற்றி (Calculator)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="app-config">
+            <span class="icon">📱</span>
+            <span>ஆப் அமைப்புகள் (App Config)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="user-activities">
+            <span class="icon">👥</span>
+            <span>பயனர்கள் செயல்பாடு (Activities)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="settings">
+            <span class="icon">⚙️</span>
+            <span>சுற்றுச்சூழல் & பிராண்டிங் (.ENV)</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="admin-user-card">
+          <div class="admin-avatar">SA</div>
+          <div class="admin-info">
+            <div class="name" id="adminNameDisplay">Tenkasi Dreams Admin</div>
+            <div class="role" id="adminRoleDisplay">Super Admin (admin3)</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-block" onclick="handleLogout()" style="padding: 8px 12px; font-size: 12px;">
+          🚪 வெளியேறு (Logout)
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      
+      <!-- Top Navbar -->
+      <header class="top-navbar">
+        <div class="page-title-box">
+          <h1 id="topNavTitleDisplay">தென்காசி ரியல் எஸ்டேட் நிர்வாகம்</h1>
+          <p id="topNavSubtitleDisplay">Tenkasi Dreams Land Real Estate Management System</p>
+        </div>
+
+        <div class="nav-actions">
+          <!-- Real-Time Notification Bell & Dropdown -->
+          <div class="notif-bell-wrapper" id="notifBellWrapper">
+            <button class="btn-notif" id="notifBellBtn" onclick="toggleNotifDropdown()" title="Notifications / புதிய விளம்பர அறிவிப்புகள்">
+              🔔
+              <span class="notif-badge" id="notifBadgeCount" style="display: none;">0</span>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown">
+              <div class="notif-header">
+                <h4>🔔 புதிய விளம்பர அறிவிப்புகள்</h4>
+                <button class="notif-clear-btn" onclick="clearAllNotifications()">நீக்கு (Clear)</button>
+              </div>
+              <div class="notif-list" id="notifListContainer">
+                <div style="padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 13px;">
+                  அறிவிப்புகள் எதுவும் இல்லை (No notifications)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="status-pill-online">
+            <span class="dot"></span>
+            <span>API Active (.ENV / MySQL)</span>
+          </div>
+          <button class="btn btn-gold" onclick="openAddPropertyModal()">
+            ➕ புதிய விளம்பரம் (Post Ad)
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Body -->
+      <main class="content-body">
+        
+        <!-- TAB 1: OVERVIEW & PROPERTIES -->
+        <section id="tab-overview" class="tab-panel active">
+          
+          <!-- KPI Stats Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>மொத்த விளம்பரங்கள்</h3>
+                <div class="stat-number" id="statTotalAds">0</div>
+                <div class="stat-sub">Total Property Listings</div>
+              </div>
+              <div class="stat-icon-wrapper icon-emerald">🏡</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>நேரலை விளம்பரங்கள்</h3>
+                <div class="stat-number" id="statActiveAds">0</div>
+                <div class="stat-sub">Active & Live Ads</div>
+              </div>
+              <div class="stat-icon-wrapper icon-gold">⚡</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>சரிபார்ப்பில் உள்ளவை</h3>
+                <div class="stat-number" id="statPendingAds">0</div>
+                <div class="stat-sub">Pending Verification</div>
+              </div>
+              <div class="stat-icon-wrapper icon-blue">⏳</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>மக்களின் தேவை</h3>
+                <div class="stat-number" id="statRequirements">0</div>
+                <div class="stat-sub">Buyer Requests Board</div>
+              </div>
+              <div class="stat-icon-wrapper icon-purple">📋</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>பார்வைகள் (Total Views)</h3>
+                <div class="stat-number" id="statViews">0</div>
+                <div class="stat-sub">Total Ad Engagements</div>
+              </div>
+              <div class="stat-icon-wrapper icon-emerald">👁️</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>மொத்த வசூல் (Revenue)</h3>
+                <div class="stat-number" id="statRevenue">₹0</div>
+                <div class="stat-sub">Paid Contact Unlocks</div>
+              </div>
+              <div class="stat-icon-wrapper icon-gold">💰</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <h3>கட்டண தொடர்புகள்</h3>
+                <div class="stat-number" id="statPaidUnlocks">0</div>
+                <div class="stat-sub">₹30 Contact Views</div>
+              </div>
+              <div class="stat-icon-wrapper icon-emerald">🔓</div>
+            </div>
+          </div>
+
+          <!-- PENDING APPROVALS SECTION -->
+          <div class="pending-approvals-box" id="pendingApprovalsSection" style="display: none;">
+            <div class="pending-box-header">
+              <div class="pending-box-title">
+                <span>🔔 சரிபார்க்க வேண்டிய புதிய பயனர் விளம்பரங்கள் (Pending Ad Approvals)</span>
+                <span class="pending-badge-count" id="pendingBoxBadgeCount">0 காத்திருப்பில்</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted);">
+                பயனர்கள் சமர்ப்பித்த விளம்பரங்கள் • அப்ரூவல் செய்தவுடன் உடனடியாக தளத்தில் நேரலையாக தோன்றும்
+              </div>
+            </div>
+            <div class="pending-cards-grid" id="pendingCardsContainer">
+              <!-- Dynamic Pending Property Cards Injected Here -->
+            </div>
+          </div>
+
+          <!-- Category Quick Selection Pills -->
+          <div class="category-pills-row">
+            <div class="cat-pill-card active" data-cat="all">
+              <div class="cat-icon">🌟</div>
+              <div class="cat-title">அனைத்தும்</div>
+              <div class="cat-count">All Categories</div>
+            </div>
+            <div class="cat-pill-card" data-cat="house">
+              <div class="cat-icon">🏡</div>
+              <div class="cat-title">வீடு / வில்லா</div>
+              <div class="cat-count"><span id="catCountHouse">0</span> Ads</div>
+            </div>
+            <div class="cat-pill-card" data-cat="land">
+              <div class="cat-icon">📐</div>
+              <div class="cat-title">மனை / நிலம்</div>
+              <div class="cat-count"><span id="catCountLand">0</span> Ads</div>
+            </div>
+            <div class="cat-pill-card" data-cat="farmland">
+              <div class="cat-icon">🌴</div>
+              <div class="cat-title">தோட்டம்</div>
+              <div class="cat-count"><span id="catCountFarmland">0</span> Ads</div>
+            </div>
+            <div class="cat-pill-card" data-cat="shop">
+              <div class="cat-icon">🏪</div>
+              <div class="cat-title">கடை / வணிகம்</div>
+              <div class="cat-count"><span id="catCountShop">0</span> Ads</div>
+            </div>
+            <div class="cat-pill-card" data-cat="rental">
+              <div class="cat-icon">🔑</div>
+              <div class="cat-title">வாடகை / லீஸ்</div>
+              <div class="cat-count"><span id="catCountRental">0</span> Ads</div>
+            </div>
+          </div>
+
+          <!-- Properties Master Table Section -->
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span>🏡 சொத்து விளம்பரங்கள் மேலாண்மை (Property Ads Master Table)</span>
+              </div>
+
+              <div class="table-controls">
+                <div class="search-input-box">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="tableSearchInput" class="form-control" placeholder="தேடுக (Title, City, Owner, ID)...">
+                </div>
+
+                <select id="tableCategoryFilter" class="select-filter">
+                  <option value="all">அனைத்து பிரிவுகள் (All Categories)</option>
+                  <option value="house">வீடு (House / Villa)</option>
+                  <option value="land">மனை / நிலம் (Land / Plots)</option>
+                  <option value="farmland">தோட்டம் (Farmland / Orchard)</option>
+                  <option value="shop">கடை / வணிகம் (Shop / Commercial)</option>
+                  <option value="apartment">அபார்ட்மெண்ட் (Apartment)</option>
+                  <option value="rental">வாடகைக்கு (Rental / Lease)</option>
+                </select>
+
+                <select id="tableStatusFilter" class="select-filter">
+                  <option value="all">அனைத்து நிலைகள் (All Status)</option>
+                  <option value="active">Active (நேரலை)</option>
+                  <option value="pending">Pending (காத்திருப்பு)</option>
+                  <option value="sold">Sold (விற்பனையானது)</option>
+                </select>
+
+                <button class="btn btn-primary" onclick="openAddPropertyModal()">
+                  ➕ விளம்பரம் சேர்
+                </button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="custom-table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>விளம்பரம் (Property / Location)</th>
+                    <th>பிரிவு (Category)</th>
+                    <th>விலை & அளவு (Price & Size)</th>
+                    <th>உரிமையாளர் / ஏஜென்ட்</th>
+                    <th>சரிபார்ப்பு (Verification)</th>
+                    <th>நிலை (Status)</th>
+                    <th style="text-align: right;">செயல்கள் (Actions)</th>
+                  </tr>
+                </thead>
+                <tbody id="propertiesTableBody">
+                  <!-- Rendered via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- TAB 2: BUYER REQUIREMENTS BOARD -->
+        <section id="tab-requirements" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">📋 மக்களின் தேவை பலகை (Buyer Requirements Board)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  தென்காசி மற்றும் சுற்றுவட்டார வாடிக்கையாளர்களின் நேரடி சொத்து தேவைகள் மற்றும் தொடர்புகள்.
+                </p>
+              </div>
+              <button class="btn btn-gold" onclick="openAddRequirementModal()">
+                ➕ புதிய தேவை பதிவு (Add Requirement)
+              </button>
+            </div>
+
+            <div id="requirementsGrid" class="requirements-grid">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 3: LAND UNIT CALCULATOR -->
+        <section id="tab-calculator" class="tab-panel">
+          <div class="calculator-box">
+            <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; text-align: center; margin-bottom: 8px;">
+              📐 நில அளவை & விலை மாற்றி (Land Unit & Price Calculator)
+            </h2>
+            <p style="font-size: 13px; color: var(--text-secondary); text-align: center; margin-bottom: 24px;">
+              சென்ட் (Cents), குழி (Kuzhi), ஏக்கர் (Acres), சதுர அடி (Sq.Ft) மற்றும் கிரவுண்ட் (Grounds) இடையிலான துல்லிய அளவீடு.
+            </p>
+
+            <div class="calc-input-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">நிலத்தின் அளவு (Land Value)</label>
+                <input type="number" id="calcInputVal" class="form-control" value="10" placeholder="10">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">அளவை அலகு (Unit)</label>
+                <select id="calcInputUnit" class="form-control">
+                  <option value="cent" selected>சென்ட் (Cents)</option>
+                  <option value="kuzhi">குழி (Kuzhi - 144 Sq.Ft)</option>
+                  <option value="sqft">சதுர அடி (Sq.Ft)</option>
+                  <option value="acre">ஏக்கர் (Acres)</option>
+                  <option value="ground">கிரவுண்ட் (Grounds - 2400 Sq.Ft)</option>
+                  <option value="maa">மா (Maa - 100 Kuzhi)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Rate Calculator -->
+            <div class="calc-input-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">ஒரு அலகின் விலை மதிப்பு (Rate ₹)</label>
+                <input type="number" id="calcRateVal" class="form-control" value="250000" placeholder="250000">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">விலை அலகு (Rate Per)</label>
+                <select id="calcRateUnit" class="form-control">
+                  <option value="cent" selected>1 சென்ட் வீதம்</option>
+                  <option value="kuzhi">1 குழி வீதம்</option>
+                  <option value="sqft">1 சதுர அடி வீதம்</option>
+                  <option value="acre">1 ஏக்கர் வீதம்</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Results Grid -->
+            <div class="calc-results-grid">
+              <div class="calc-result-card">
+                <div class="unit-label">சென்ட் (Cents)</div>
+                <div class="unit-val" id="resCent">0</div>
+              </div>
+              <div class="calc-result-card">
+                <div class="unit-label">குழி (Kuzhi)</div>
+                <div class="unit-val" id="resKuzhi">0</div>
+              </div>
+              <div class="calc-result-card">
+                <div class="unit-label">சதுர அடி (Sq.Ft)</div>
+                <div class="unit-val" id="resSqFt">0</div>
+              </div>
+              <div class="calc-result-card">
+                <div class="unit-label">ஏக்கர் (Acres)</div>
+                <div class="unit-val" id="resAcre">0</div>
+              </div>
+              <div class="calc-result-card">
+                <div class="unit-label">கிரவுண்ட் (Grounds)</div>
+                <div class="unit-val" id="resGround">0</div>
+              </div>
+              <div class="calc-result-card">
+                <div class="unit-label">மா (Maa)</div>
+                <div class="unit-val" id="resMaa">0</div>
+              </div>
+            </div>
+
+            <!-- Total Estimated Price Card -->
+            <div style="margin-top: 24px; padding: 20px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); text-align: center;">
+              <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">மதிப்பிடப்பட்ட மொத்த சொத்து விலை (Total Estimated Value):</div>
+              <div id="resTotalPrice" style="font-size: 28px; font-weight: 800; color: var(--accent-primary);">₹0</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB: REVENUE & PAYMENTS -->
+        <section id="tab-payments" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">💰 வருவாய் & கட்டண பரிவர்த்தனைகள் (Revenue & Payments)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  வாடிக்கையாளர்கள் ₹30 செலுத்தி தொடர்பு எண்களை திறந்த நேரடி பரிவர்த்தனைகள்
+                </p>
+              </div>
+              <button class="btn btn-secondary" onclick="loadPaymentsData()">
+                🔄 புதுப்பி (Refresh)
+              </button>
+            </div>
+
+            <div class="stats-grid" style="margin-bottom: 24px;">
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>மொத்த வசூல் (Total Revenue)</h3>
+                  <div class="stat-number" id="paySummaryTotal">₹0</div>
+                  <div class="stat-sub">Razorpay UPI & Cards Total</div>
+                </div>
+                <div class="stat-icon-wrapper icon-gold">💰</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>கட்டண தொடர்புகள்</h3>
+                  <div class="stat-number" id="paySummaryPaidCount">0</div>
+                  <div class="stat-sub">Paid Unlocks (₹30 each)</div>
+                </div>
+                <div class="stat-icon-wrapper icon-emerald">🔓</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>இலவச பார்வைகள்</h3>
+                  <div class="stat-number" id="paySummaryFreeCount">0</div>
+                  <div class="stat-sub">Free Contact Views (3 Quota)</div>
+                </div>
+                <div class="stat-icon-wrapper icon-blue">🎁</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>ஒரு தொடர்பு கட்டணம்</h3>
+                  <div class="stat-number" id="paySummaryPrice">₹30</div>
+                  <div class="stat-sub">Price per Contact Unlock</div>
+                </div>
+                <div class="stat-icon-wrapper icon-purple">⚡</div>
+              </div>
+            </div>
+
+            <!-- PRICING & OFFER CONTROL CENTER -->
+            <div style="background: linear-gradient(135deg, rgba(23, 34, 56, 0.95), rgba(15, 23, 42, 0.95)); border: 1.5px solid rgba(245, 158, 11, 0.35); border-radius: var(--radius-md); padding: 22px; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.4);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <div style="font-size: 16px; font-weight: 800; color: #fbbf24; display: flex; align-items: center; gap: 8px;">
+                    ⚙️ கட்டணங்கள், இலவச வரம்பு & ஆஃபர் மேலாண்மை (Pricing & Offer Controls)
+                  </div>
+                  <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px;">
+                    சூப்பர் அட்மின் நினைத்தால் எந்த நேரத்திலும் இலவச வரம்பு, கட்டண தொகை (₹30 அல்லது ₹10) மற்றும் தள்ளுபடி ஆஃபர்களை மாற்றிக்கொள்ளலாம்.
+                  </div>
+                </div>
+                <button class="btn btn-emerald" style="font-weight: 800; padding: 9px 18px;" onclick="savePricingOfferSettings()">
+                  💾 அமைப்புகளை சேமி (Save Pricing & Offers)
+                </button>
+              </div>
+
+              <div class="form-grid-3" style="margin-bottom: 16px;">
+                <div class="form-group">
+                  <label class="form-label" style="color: #6ee7b7;">🎁 ஆரம்ப இலவச தொடர்புகள் வரம்பு</label>
+                  <input type="number" id="pricing_FREE_CONTACT_LIMIT" class="form-control" placeholder="3" min="0" max="50" value="3">
+                  <small style="color: var(--text-muted); font-size: 11px;">புதிய பயனர் லாகின் செய்ததும் பார்க்கும் இலவச எண்கள் (Default: 3)</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" style="color: #fbbf24;">🏷️ வழக்கமான கட்டணம் (₹ Standard Price)</label>
+                  <input type="number" id="pricing_CONTACT_UNLOCK_PRICE" class="form-control" placeholder="30" min="1" value="30">
+                  <small style="color: var(--text-muted); font-size: 11px;">இலவச வரம்பு முடிந்த பின் ஒரு திறப்பிற்கான கட்டணம் (Default: ₹30)</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" style="color: #93c5fd;">🔢 கட்டணத்திற்கு திறக்கப்படும் எண்கள்</label>
+                  <input type="number" id="pricing_UNLOCK_CONTACTS_COUNT" class="form-control" placeholder="1" min="1" value="1">
+                  <small style="color: var(--text-muted); font-size: 11px;">கட்டணம் செலுத்தினால் எத்தனை தொடர்பு எண்கள் திறக்க வேண்டும்</small>
+                </div>
+              </div>
+
+              <!-- Offer Controls Box -->
+              <div style="background: rgba(245, 158, 11, 0.07); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                  <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fbbf24; cursor: pointer;">
+                    <input type="checkbox" id="pricing_OFFER_ACTIVE" style="width: 18px; height: 18px; accent-color: #f59e0b;" onchange="updateOfferBadgeStatus(this.checked)">
+                    <span>⚡ சிறப்பு தள்ளுபடி ஆஃபர் இயக்கவும் (Enable Promotional Offer)</span>
+                  </label>
+                  <span class="badge" id="pricingOfferStatusBadge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">ஆஃபர் முடக்கத்தில் உள்ளது</span>
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">🏷️ ஆஃபர் விலை (Special Offer ₹)</label>
+                    <input type="number" id="pricing_OFFER_UNLOCK_PRICE" class="form-control" placeholder="10" min="1" value="10">
+                    <small style="color: var(--text-muted); font-size: 11px;">உதா: ₹10 மட்டும் (தள்ளுபடி விலை)</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">🔢 ஆஃபரில் திறக்கப்படும் தொடர்புகள்</label>
+                    <input type="number" id="pricing_OFFER_CONTACTS_COUNT" class="form-control" placeholder="1" min="1" value="1">
+                    <small style="color: var(--text-muted); font-size: 11px;">ஆஃபரில் எத்தனை எண்கள் திறக்கப்படும் (உதா: 1 அல்லது 3)</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">📢 ஆஃபர் பேனர் வாசகம் (Banner Text)</label>
+                    <input type="text" id="pricing_OFFER_BANNER_TEXT" class="form-control" placeholder="சிறப்பு சலுகை: வெறும் ₹10 செலுத்தி உரிமையாளர் எண்ணை உடனே பெறலாம்!" value="சிறப்பு சலுகை: வெறும் ₹10 செலுத்தி உரிமையாளர் எண்ணை உடனே பெறலாம்!">
+                    <small style="color: var(--text-muted); font-size: 11px;">வாடிக்கையாளர்களுக்கு காட்டப்படும் அறிவிப்பு</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Presets -->
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">⚡ விரைவு அமைப்புகள் (Presets):</span>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="applyPricingPreset(3, 30, 1, false, 10, 1, 'சிறப்பு சலுகை: வெறும் ₹10 செலுத்தி உரிமையாளர் எண்ணை உடனே பெறலாம்!')">
+                  ⭐ இயல்பு: 3 இலவசம் + ₹30 கட்டணம்
+                </button>
+                <button type="button" class="btn btn-gold" style="padding: 4px 10px; font-size: 11px;" onclick="applyPricingPreset(3, 30, 1, true, 10, 1, '🎉 சிறப்பு ஆஃபர்: வெறும் ₹10 செலுத்தி உரிமையாளர் எண்ணை உடனே அறியலாம்!')">
+                  🔥 சூப்பர் ஆஃபர்: 3 இலவசம் + ₹10 ஆஃபர்
+                </button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="applyPricingPreset(5, 20, 1, false, 10, 1, 'சிறப்பு சலுகை!')">
+                  🎁 5 இலவசம் + ₹20 கட்டணம்
+                </button>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="applyPricingPreset(0, 10, 1, true, 10, 1, 'நேரடி கட்டணம்: ₹10 மட்டும்')">
+                  ⚡ 0 இலவசம் + நேரடி ₹10 கட்டணம்
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>பரிவர்த்தனை ID</th>
+                    <th>தேதி & நேரம்</th>
+                    <th>சொத்தின் தலைப்பு</th>
+                    <th>வாடிக்கையாளர்</th>
+                    <th>கட்டண முறை</th>
+                    <th>தொகை</th>
+                    <th>நிலை</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentsTableBody">
+                  <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ஏற்றப்படுகிறது...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 4: ENVIRONMENT & WHITE-LABEL CONFIGURATION -->
+        <section id="tab-settings" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">⚙️ ஒயிட் லேபில் & சுற்றுச்சூழல் அமைப்புகள் (White-Label & .ENV Settings)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  லோகோ, பிராண்ட் பெயர், தொடர்பு எண்கள், தீம் வண்ணங்கள் மற்றும் MySQL டேட்டாபேஸ் அமைப்புகளை இங்கிருந்தே மாற்றலாம்.
+                </p>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <button class="btn btn-secondary" onclick="resetEnvConfig()">🔄 Reset Defaults</button>
+                <button class="btn btn-primary" onclick="saveEnvForm()">💾 சேமிக்க (Save Settings)</button>
+              </div>
+            </div>
+
+            <!-- Sub Navigation Tabs for Form vs Raw -->
+            <div style="display:flex; gap:12px; margin-bottom: 24px;">
+              <button id="btnEnvTabForm" class="btn btn-primary" style="padding:8px 16px; font-size:13px;" onclick="toggleEnvEditorView('form')">🎛️ ஒயிட் லேபில் & அமைப்புகள் படிவம்</button>
+              <button id="btnEnvTabRaw" class="btn btn-secondary" style="padding:8px 16px; font-size:13px;" onclick="toggleEnvEditorView('raw')">📝 நேரடி .env எடிட்டர் (Raw .env)</button>
+            </div>
+
+            <!-- Form View Section -->
+            <div id="envFormSection">
+              
+              <!-- Card 1: White-Label Branding & Identity -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="font-size:16px; font-weight:700; color:var(--accent-gold); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                  🏷️ பிராண்டிங் & லோகோ மேலாண்மை (Brand Identity & Logo Customization)
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">செயலி / இணையதள பெயர் (App & Brand Name) *</label>
+                    <input type="text" id="env_APP_NAME" class="form-control" placeholder="Tenkasi Dreams Land" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">டேக்லைன் / முழக்கம் (Slogan / Tagline)</label>
+                    <input type="text" id="env_APP_TAGLINE" class="form-control" placeholder="தென்காசி கனவுகள் - ரியல் எஸ்டேட்">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">லோகோ ஐகான் / Emoji (Logo Symbol)</label>
+                    <input type="text" id="env_APP_LOGO_EMOJI" class="form-control" placeholder="🏛️">
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label class="form-label">லோகோ பட முகவரி (Logo Image URL)</label>
+                    <input type="text" id="env_APP_LOGO_URL" class="form-control" placeholder="https://domain.com/logo.png அல்லது பதிவேற்றவும்">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">புதிய லோகோ படம் Upload செய்ய (Logo Upload)</label>
+                    <input type="file" id="uploadLogoFile" class="form-control" accept="image/*" onchange="handleBrandImageUpload(this, 'logo')">
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label class="form-label">Hero Banner Image URL (முகப்பு பேனர்)</label>
+                    <input type="text" id="env_HERO_BANNER_URL" class="form-control" placeholder="https://domain.com/banner.jpg">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">புதிய Banner படம் Upload செய்ய</label>
+                    <input type="file" id="uploadBannerFile" class="form-control" accept="image/*" onchange="handleBrandImageUpload(this, 'banner')">
+                  </div>
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">முதன்மை வண்ணம் (Primary Color)</label>
+                    <div style="display:flex; gap:8px;">
+                      <input type="color" id="env_PRIMARY_COLOR_PICKER" value="#10b981" style="width:44px; height:42px; border:none; border-radius:6px; cursor:pointer;" onchange="document.getElementById('env_PRIMARY_COLOR').value = this.value">
+                      <input type="text" id="env_PRIMARY_COLOR" class="form-control" value="#10B981" onchange="document.getElementById('env_PRIMARY_COLOR_PICKER').value = this.value">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">துணை வண்ணம் (Accent Gold)</label>
+                    <div style="display:flex; gap:8px;">
+                      <input type="color" id="env_ACCENT_COLOR_PICKER" value="#f59e0b" style="width:44px; height:42px; border:none; border-radius:6px; cursor:pointer;" onchange="document.getElementById('env_ACCENT_COLOR').value = this.value">
+                      <input type="text" id="env_ACCENT_COLOR" class="form-control" value="#F59E0B" onchange="document.getElementById('env_ACCENT_COLOR_PICKER').value = this.value">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">நிறுவனத்தின் பெயர் (Company Name)</label>
+                    <input type="text" id="env_COMPANY_NAME" class="form-control" placeholder="Tenkasi Dreams Real Estate Group">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">அடிக்குறிப்பு காப்புரிமை வாசகம் (Footer Copyright)</label>
+                  <input type="text" id="env_FOOTER_COPYRIGHT" class="form-control" placeholder="© 2026 Tenkasi Dreams Land. All Rights Reserved.">
+                </div>
+              </div>
+
+              <!-- Card 2: Contact & Social Media Information -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="font-size:16px; font-weight:700; color:var(--accent-primary); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                  📞 தொடர்பு & சமூக வலைதளங்கள் (Contact & Social Details)
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">அட்மின் / உரிமையாளர் பெயர்</label>
+                    <input type="text" id="env_ADMIN_NAME" class="form-control" placeholder="Murugan Nagarajan">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">அழைப்பு எண் (Admin Contact Phone) *</label>
+                    <input type="text" id="env_ADMIN_PHONE" class="form-control" placeholder="+91 98941 74944" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">அதிகாரப்பூர்வ WhatsApp எண் *</label>
+                    <input type="text" id="env_WHATSAPP_NUMBER" class="form-control" placeholder="+91 98941 74944" required>
+                  </div>
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">அதிகாரப்பூர்வ Support Email</label>
+                    <input type="email" id="env_ADMIN_EMAIL" class="form-control" placeholder="tenkasidreams@gmail.com">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">நகரம் / மாவட்டம் (Default City)</label>
+                    <input type="text" id="env_DEFAULT_CITY" class="form-control" placeholder="Tenkasi">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">நாணயக் குறியீடு (Currency Symbol)</label>
+                    <input type="text" id="env_CURRENCY_SYMBOL" class="form-control" placeholder="₹">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">முழு அலுவலக முகவரி (Full Office Address)</label>
+                  <input type="text" id="env_OFFICE_ADDRESS" class="form-control" placeholder="Main Road, Courtallam Junction, Tenkasi - 627811">
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">Facebook Link</label>
+                    <input type="text" id="env_SOCIAL_FACEBOOK" class="form-control" placeholder="https://facebook.com/yourpage">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">YouTube Link</label>
+                    <input type="text" id="env_SOCIAL_YOUTUBE" class="form-control" placeholder="https://youtube.com/@yourchannel">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Telegram Link</label>
+                    <input type="text" id="env_SOCIAL_TELEGRAM" class="form-control" placeholder="https://t.me/yourgroup">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card: Monetization & Razorpay Gateway Settings -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="font-size:16px; font-weight:700; color:var(--accent-gold); display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                  💳 Razorpay Payment Gateway & தொடர்பு கட்டண அமைப்புகள்
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">Razorpay Account ID (Merchant ID)</label>
+                    <input type="text" id="env_RAZORPAY_ACCOUNT_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Razorpay Key ID (Client Key) *</label>
+                    <input type="text" id="env_RAZORPAY_KEY_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Razorpay Key Secret</label>
+                    <input type="password" id="env_RAZORPAY_KEY_SECRET" class="form-control" placeholder="••••••••••••">
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label class="form-label">தொடர்பு பார்க்கும் கட்டணம் (Unlock Price in ₹) *</label>
+                    <input type="number" id="env_CONTACT_UNLOCK_PRICE" class="form-control" placeholder="30" value="30">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">புதிய பயனருக்கு இலவச தொடர்புகள் (Free Quota) *</label>
+                    <input type="number" id="env_FREE_CONTACT_LIMIT" class="form-control" placeholder="3" value="3">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card 3: Database Settings -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                  <div style="font-size:16px; font-weight:700; color:var(--accent-blue); display:flex; align-items:center; gap:8px;">
+                    🗄️ MySQL Database Connection (டேட்டாபேஸ் இணைப்பு)
+                  </div>
+                  <button type="button" class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="testDatabaseConnection()">
+                    🔌 Test Connection
+                  </button>
+                </div>
+
+                <div id="dbConnectionStatusBox" style="display:none; padding:12px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13px;"></div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">DB Host (ஹோஸ்ட்)</label>
+                    <input type="text" id="env_DB_HOST" class="form-control" placeholder="localhost">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">DB Port (போர்ட்)</label>
+                    <input type="text" id="env_DB_PORT" class="form-control" placeholder="3306">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">DB Name (டேட்டாபேஸ் பெயர்)</label>
+                    <input type="text" id="env_DB_NAME" class="form-control" placeholder="tenkasi_dreams">
+                  </div>
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">DB Username (பயனர்)</label>
+                    <input type="text" id="env_DB_USER" class="form-control" placeholder="root">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">DB Password (கடவுச்சொல்)</label>
+                    <input type="password" id="env_DB_PASS" class="form-control" placeholder="••••••">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Storage Mode (சேமிப்பு முறை)</label>
+                    <select id="env_STORAGE_MODE" class="form-control">
+                      <option value="auto">Auto (MySQL first, JSON fallback)</option>
+                      <option value="mysql">Force MySQL only</option>
+                      <option value="json">JSON Flat File storage only</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card 4: Super Admin Authentication Settings -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="font-size:16px; font-weight:700; color:var(--accent-gold); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                  👑 Super Admin Authentication (சூப்பர் அட்மின் கணக்கு)
+                </div>
+
+                <div class="form-grid-3">
+                  <div class="form-group">
+                    <label class="form-label">Super Admin Username *</label>
+                    <input type="text" id="env_SUPER_ADMIN_USER" class="form-control" value="admin3" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Super Admin Password *</label>
+                    <input type="text" id="env_SUPER_ADMIN_PASS" class="form-control" value="000003" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Session Lifetime (Hours)</label>
+                    <input type="number" id="env_SESSION_LIFETIME_HOURS" class="form-control" value="24">
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Raw Editor Section -->
+            <div id="envRawSection" style="display:none;">
+              <div class="form-group">
+                <label class="form-label">.env கோப்பு நேரடி உள்ளடக்கம் (Direct .env Editor)</label>
+                <textarea id="rawEnvTextarea" class="form-control" style="font-family: monospace; font-size: 13px; line-height: 1.6; height: 420px; background: #080c14; color: #a7f3d0; border-color: rgba(16, 185, 129, 0.3);"></textarea>
+              </div>
+              <button class="btn btn-primary" onclick="saveRawEnvFile()">💾 Save Raw .env File</button>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- TAB 5: APP CONFIGURATION & LOGIN MODE CONTROLS -->
+        <section id="tab-app-config" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">📱 செயலி அமைப்புகள் & லாகின் கட்டுப்பாடு (App Configuration)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  மொபைல் செயலி மற்றும் இணையதளத்தில் Google Sign-In அல்லது செல்போன் OTP என உள்நுழைவு முறையையும், தொடர்பு கட்டணங்களையும் இங்கிருந்து நிர்வகிக்கலாம்.
+                </p>
+              </div>
+              <button class="btn btn-emerald" style="font-weight: 800; padding: 10px 20px;" onclick="saveAppConfigSettings()">
+                💾 அமைப்புகளை சேமி (Save App Config)
+              </button>
+            </div>
+
+            <!-- Card 1: User Login Authentication Mode Controls -->
+            <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1.5px solid rgba(16, 185, 129, 0.4); border-radius: var(--radius-md); padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+              <div style="font-size: 17px; font-weight: 800; color: #6ee7b7; display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                🔐 பயனர் உள்நுழைவு முறை கட்டுப்பாடு (User Login Authentication Mode)
+              </div>
+              <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+                வாடிக்கையாளர் ஆப்பை திறக்கும்போது எந்த முறையில் லாகின் செய்ய வேண்டும் என்பதை தேர்வு செய்யுங்கள்:
+              </p>
+
+              <!-- 3 Interactive Mode Option Cards -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <!-- Option 1: Google Sign-In Only (Default) -->
+                <div class="app-mode-card" id="modeCardGoogle" onclick="selectLoginModePreset('google')" style="background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; border-radius: 12px; padding: 18px; cursor: pointer; transition: all 0.2s ease;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 15px; font-weight: 800; color: #6ee7b7; display: flex; align-items: center; gap: 8px;">
+                      <span>🌐</span> Google Sign-In மட்டும் (Google Only)
+                    </div>
+                    <span class="badge" id="badgeModeGoogle" style="background: #10b981; color: #fff; font-size: 11px; font-weight: 800;">பரிந்துரைக்கப்பட்டது</span>
+                  </div>
+                  <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.4;">
+                    பயனர்கள் Gmail மூலம் 1-கிளிக்கில் உடனடியாக பாதுகாப்பாக உள்நுழைவர். செல்போன் OTP தேவையில்லை. எளிமையான அனுபவம்.
+                  </div>
+                </div>
+
+                <!-- Option 2: Phone OTP Only -->
+                <div class="app-mode-card" id="modeCardPhone" onclick="selectLoginModePreset('phone')" style="background: rgba(15, 23, 42, 0.6); border: 1.5px solid rgba(148, 163, 184, 0.3); border-radius: 12px; padding: 18px; cursor: pointer; transition: all 0.2s ease;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 15px; font-weight: 800; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
+                      <span>📱</span> மொபைல் எண் OTP மட்டும் (Phone OTP)
+                    </div>
+                    <span class="badge" id="badgeModePhone" style="display: none; background: #3b82f6; color: #fff; font-size: 11px;">இயக்கத்தில் உள்ளது</span>
+                  </div>
+                  <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                    பயனர்கள் தங்களது 10 இலக்க செல்போன் எண் மற்றும் OTP உள்ளிட்டு உள்நுழைவர்.
+                  </div>
+                </div>
+
+                <!-- Option 3: Both Google & Phone OTP -->
+                <div class="app-mode-card" id="modeCardBoth" onclick="selectLoginModePreset('both')" style="background: rgba(15, 23, 42, 0.6); border: 1.5px solid rgba(148, 163, 184, 0.3); border-radius: 12px; padding: 18px; cursor: pointer; transition: all 0.2s ease;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 15px; font-weight: 800; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
+                      <span>⚡</span> Google & மொபைல் இரண்டும் (Both)
+                    </div>
+                    <span class="badge" id="badgeModeBoth" style="display: none; background: #8b5cf6; color: #fff; font-size: 11px;">இயக்கத்தில் உள்ளது</span>
+                  </div>
+                  <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                    பயனர்கள் தங்களுக்கு விருப்பமான Google அல்லது Phone OTP இரண்டில் ஏதேனும் ஒன்றை தேர்வு செய்யலாம்.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hidden input holding current mode -->
+              <input type="hidden" id="app_LOGIN_METHOD" value="google">
+
+              <!-- Checkbox Toggles -->
+              <div style="background: rgba(11, 17, 30, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; display: flex; gap: 24px; flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: #e2e8f0; cursor: pointer;">
+                  <input type="checkbox" id="app_GOOGLE_SIGN_IN_ENABLED" checked style="width: 18px; height: 18px; accent-color: #10b981;" onchange="syncLoginCheckboxes()">
+                  <span>🌐 Google Sign-In உள்நுழைவு அனுமதி (Enable Google Sign-In)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: #e2e8f0; cursor: pointer;">
+                  <input type="checkbox" id="app_PHONE_OTP_ENABLED" style="width: 18px; height: 18px; accent-color: #10b981;" onchange="syncLoginCheckboxes()">
+                  <span>📱 செல்போன் OTP உள்நுழைவு அனுமதி (Enable Phone OTP)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Card 2: Contact Unlock Limits & Pricing -->
+            <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+              <div style="font-size: 16px; font-weight: 700; color: var(--accent-gold); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                💰 தொடர்பு பார்க்கும் கட்டணம் & இலவச வரம்புகள் (Unlock Paywall Controls)
+              </div>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label class="form-label">🎁 இலவச தொடர்புகள் வரம்பு (Free Contacts)</label>
+                  <input type="number" id="app_FREE_CONTACT_LIMIT" class="form-control" value="3" min="0" max="50">
+                  <small style="color: var(--text-muted); font-size: 11px;">புதிய பயனர் இலவசமாக பார்க்கும் எண்கள் (இயல்பு: 3)</small>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">🏷️ வழக்கமான கட்டணம் (Standard Price ₹)</label>
+                  <input type="number" id="app_CONTACT_UNLOCK_PRICE" class="form-control" value="30" min="1">
+                  <small style="color: var(--text-muted); font-size: 11px;">இலவச வரம்பு முடிந்த பின் கட்டணம் (இயல்பு: ₹30)</small>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">🏷️ ஆஃபர் விலை (Promotional Offer ₹)</label>
+                  <input type="number" id="app_OFFER_UNLOCK_PRICE" class="form-control" value="10" min="1">
+                  <small style="color: var(--text-muted); font-size: 11px;">சிறப்பு தள்ளுபடி விலை (உதா: ₹10)</small>
+                </div>
+              </div>
+
+              <div style="margin-top: 10px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fbbf24; cursor: pointer; margin-bottom: 10px;">
+                  <input type="checkbox" id="app_OFFER_ACTIVE" style="width: 17px; height: 17px; accent-color: #f59e0b;">
+                  <span>⚡ சிறப்பு ஆஃபர் இயக்கத்தில் வைக்கவும் (Enable Promo Offer)</span>
+                </label>
+                <div class="form-group">
+                  <label class="form-label">📢 ஆஃபர் பேனர் வாசகம்</label>
+                  <input type="text" id="app_OFFER_BANNER_TEXT" class="form-control" value="🎉 சிறப்பு ஆஃபர்: வெறும் ₹10 செலுத்தி உரிமையாளர் எண்ணை உடனே அறியலாம்!">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Razorpay Keys -->
+            <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+              <div style="font-size: 16px; font-weight: 700; color: var(--accent-blue); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                💳 Razorpay Payment Gateway Keys (நேரலை கட்டண இணைப்பு)
+              </div>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label class="form-label">Razorpay Account ID (Merchant ID)</label>
+                  <input type="text" id="app_RAZORPAY_ACCOUNT_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Razorpay Key ID *</label>
+                  <input type="text" id="app_RAZORPAY_KEY_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Razorpay Key Secret</label>
+                  <input type="password" id="app_RAZORPAY_KEY_SECRET" class="form-control" placeholder="••••••••••••••••">
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align: right;">
+              <button class="btn btn-emerald" style="font-weight: 800; padding: 12px 28px; font-size: 14px;" onclick="saveAppConfigSettings()">
+                💾 செயலி அமைப்புகளை சேமிக்க (Save All Settings)
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 6: USER ACTIVITIES & LEADS TRACKER -->
+        <section id="tab-user-activities" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">👥 பயனர்கள் செயல்பாடு & லீட்ஸ் மேலாண்மை (User Activities & Leads)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  பயனர்கள் யார் யாருடைய தொடர்பு எண்களைப் பார்த்தார்கள், எந்த சொத்துக்களைப் பார்த்தார்கள் மற்றும் விற்பனையாளர்களின் நேரடி வாடிக்கையாளர் லீட்ஸ்.
+                </p>
+              </div>
+              <button class="btn btn-secondary" onclick="loadActivitiesData()">
+                🔄 புதுப்பி (Refresh)
+              </button>
+            </div>
+
+            <!-- Activity KPI Stats Grid -->
+            <div class="stats-grid" style="margin-bottom: 24px;">
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>மொத்த செயல்பாடுகள்</h3>
+                  <div class="stat-number" id="actStatTotal">0</div>
+                  <div class="stat-sub">Total User Actions Logged</div>
+                </div>
+                <div class="stat-icon-wrapper icon-blue">📊</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>தொடர்பு எண்கள் திறப்பு</h3>
+                  <div class="stat-number" id="actStatUnlocks">0</div>
+                  <div class="stat-sub">Contacts Unlocked (Free + Paid)</div>
+                </div>
+                <div class="stat-icon-wrapper icon-emerald">🔓</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>கட்டண வசூல்</h3>
+                  <div class="stat-number" id="actStatRevenue">₹0</div>
+                  <div class="stat-sub">Paid Unlock Revenue</div>
+                </div>
+                <div class="stat-icon-wrapper icon-gold">💰</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-info">
+                  <h3>தனிப்பட்ட பயனர்கள்</h3>
+                  <div class="stat-number" id="actStatUsers">0</div>
+                  <div class="stat-sub">Active Buyers & Sellers</div>
+                </div>
+                <div class="stat-icon-wrapper icon-purple">👥</div>
+              </div>
+            </div>
+
+            <!-- Filter & Search Controls Bar -->
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
+              <!-- Search Box -->
+              <div style="flex: 1; min-width: 240px;">
+                <input type="text" id="actSearchInput" class="form-control" placeholder="🔍 பயனர் பெயர், எண், சொத்து தலைப்பு தேட..." oninput="filterActivitiesList()">
+              </div>
+
+              <!-- Action Type Filter -->
+              <div style="min-width: 180px;">
+                <select id="actFilterAction" class="form-control" onchange="filterActivitiesList()">
+                  <option value="all">அனைத்து செயல்பாடுகள் (All)</option>
+                  <option value="contact_unlock_free">🔓 இலவச தொடர்பு பார்வை</option>
+                  <option value="contact_unlock_paid">💰 கட்டண தொடர்பு திறப்பு</option>
+                  <option value="property_view">👁️ சொத்து பார்வை</option>
+                  <option value="property_post">📝 புதிய விளம்பரம் பதிவு</option>
+                </select>
+              </div>
+
+              <!-- Filter by Single User Dropdown -->
+              <div style="min-width: 220px;">
+                <select id="actFilterSingleUser" class="form-control" onchange="filterActivitiesByUser(this.value)">
+                  <option value="">👤 அனைத்து பயனர்கள் (All Users)</option>
+                  <!-- Populated dynamically via JS -->
+                </select>
+              </div>
+
+              <button class="btn btn-secondary" onclick="resetActivityFilters()">✕ ரீசெட்</button>
+            </div>
+
+            <!-- Single User Info Banner (shows when filtered by a specific user) -->
+            <div id="actSingleUserBanner" style="display: none; background: rgba(59, 130, 246, 0.12); border: 1.5px solid rgba(59, 130, 246, 0.4); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: none; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 44px; height: 44px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff;">👤</div>
+                <div>
+                  <div id="actBannerUserName" style="font-size: 15px; font-weight: 800; color: #93c5fd;">User Name</div>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                    📞 <span id="actBannerUserPhone">-</span> | ✉️ <span id="actBannerUserEmail">-</span>
+                  </div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="badge badge-verified" id="actBannerActivityCount">0 செயல்பாடுகள்</span>
+                <div style="margin-top: 6px;">
+                  <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="resetActivityFilters()">அனைத்து பயனர்களையும் காட்டு</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Activities Data Table -->
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>தேதி & நேரம்</th>
+                    <th>பயனர் விபரம் (Buyer / User)</th>
+                    <th>செயல்பாடு (Action)</th>
+                    <th>சொத்து விபரம் (Property)</th>
+                    <th>உரிமையாளர் / போஸ்ட் செய்தவர் (Seller)</th>
+                    <th>தொகை</th>
+                    <th>நேரடி தொடர்பு</th>
+                  </tr>
+                </thead>
+                <tbody id="activitiesTableBody">
+                  <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ஏற்றப்படுகிறது...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== 3. ADD / EDIT PROPERTY MODAL ==================== -->
+  <div id="propertyModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="propertyModalTitle">➕ விளம்பரம் சேர்த்தல் / திருத்துதல்</h3>
+        <button class="modal-close" onclick="closeModal('propertyModal')">✕</button>
+      </div>
+
+      <form id="propertyForm">
+        <div class="modal-body">
+          <input type="hidden" id="propIdField">
+
+          <div class="form-group">
+            <label class="form-label">விளம்பர தலைப்பு (Title) *</label>
+            <input type="text" id="propTitle" class="form-control" placeholder="எ.கா: 3 BHK தனி வீடு விற்பனைக்கு" required>
+          </div>
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label">சொத்து வகை (Category) *</label>
+              <select id="propType" class="form-control" required>
+                <option value="House">வீடு (House / Villa)</option>
+                <option value="Land">மனை / நிலம் (Land / Plots)</option>
+                <option value="Farmland">தோட்டம் (Farmland / Orchard)</option>
+                <option value="Shop">கடை / வணிகம் (Shop / Commercial)</option>
+                <option value="Apartment">அபார்ட்மெண்ட் (Apartment / Flat)</option>
+                <option value="Rental">வாடகைக்கு (Rental / Lease)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">விலை (Price in ₹) *</label>
+              <input type="number" id="propPrice" class="form-control" placeholder="4500000" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">பரப்பளவு (Area in Sq.Ft) *</label>
+              <input type="number" id="propAreaSqFt" class="form-control" placeholder="1500" required>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">முகவரி / இடம் (Location) *</label>
+              <input type="text" id="propLocation" class="form-control" placeholder="Tenkasi Bypass Road" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">மாவட்டம் / நகரம் (City / District)</label>
+              <input type="text" id="propCity" class="form-control" value="Tenkasi" placeholder="Tenkasi">
+            </div>
+          </div>
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label">பதிவிட்டவர் (Poster Type)</label>
+              <select id="propPosterType" class="form-control">
+                <option value="Direct Owner">நேரடி உரிமையாளர் (Direct Owner)</option>
+                <option value="Agent">ரியல் எஸ்டேட் ஏஜென்ட் (Agent)</option>
+                <option value="Promoter">லேண்ட் புரமோட்டர் (Promoter)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">தொடர்பு எண் (Phone / WhatsApp) *</label>
+              <input type="text" id="propContactPhone" class="form-control" value="+91 98941 74944" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">பார்வை திசை (Facing)</label>
+              <select id="propFacing" class="form-control">
+                <option value="East">East (கிழக்கு)</option>
+                <option value="North">North (வடக்கு)</option>
+                <option value="North-East">North-East (வடகிழக்கு)</option>
+                <option value="West">West (மேற்கு)</option>
+                <option value="South">South (தெற்கு)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">அருகிலுள்ள அடையாளம் (Landmark)</label>
+            <input type="text" id="propLandmark" class="form-control" placeholder="Near Kasi Viswanathar Temple">
+          </div>
+
+          <!-- Dynamic Category Specific Form Section -->
+          <div id="dynamicCategoryFields" class="category-dynamic-fields">
+            <!-- Rendered automatically via handleCategoryChange -->
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label">முழு விவரம் (Description)</label>
+            <textarea id="propDescription" class="form-control" rows="3" placeholder="சொத்தின் கூடுதல் சிறப்பம்சங்கள், நீர் வளம், சாலை வசதி..."></textarea>
+          </div>
+
+          <div class="form-grid-3" style="margin-top: 14px;">
+            <div class="form-group">
+              <label class="form-label">விளம்பர நிலை (Status)</label>
+              <select id="propStatus" class="form-control">
+                <option value="active">Active (நேரலை)</option>
+                <option value="pending">Pending (காத்திருப்பு)</option>
+                <option value="sold">Sold (விற்பனையானது)</option>
+              </select>
+            </div>
+
+            <div style="display:flex; flex-direction:column; justify-content:center; gap:8px;">
+              <div class="checkbox-group">
+                <input type="checkbox" id="propIsVerified" checked>
+                <label for="propIsVerified">✓ சரிபார்க்கப்பட்டது (Verified Shield)</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="propIsFeatured">
+                <label for="propIsFeatured">★ சிறப்பு விளம்பரம் (Featured Ad)</label>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; justify-content:center; gap:8px;">
+              <div class="checkbox-group">
+                <input type="checkbox" id="propBankLoan" checked>
+                <label for="propBankLoan">வங்கி கடன் வசதி (Bank Loan)</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="propPriceNegotiable" checked>
+                <label for="propPriceNegotiable">விலை பேசலாம் (Negotiable)</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('propertyModal')">ரத்து செய் (Cancel)</button>
+          <button type="submit" class="btn btn-primary">💾 சேமிக்க (Save Property)</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== 4. ADD BUYER REQUIREMENT MODAL ==================== -->
+  <div id="requirementModal" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ வாடிக்கையாளர் தேவை பதிவு (Add Requirement)</h3>
+        <button class="modal-close" onclick="closeModal('requirementModal')">✕</button>
+      </div>
+
+      <form id="reqForm">
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">வாடிக்கையாளர் பெயர் *</label>
+              <input type="text" id="reqUserName" class="form-control" placeholder="எ.கா: முத்துராமன்" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">தொலைபேசி எண் *</label>
+              <input type="text" id="reqUserPhone" class="form-control" placeholder="+91 98421 55678" required>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">தேவைப்படும் சொத்து வகை</label>
+              <select id="reqPropertyType" class="form-control">
+                <option value="Land">மனை / நிலம் (Land)</option>
+                <option value="Farmland">தோட்டம் (Farmland)</option>
+                <option value="House">தனி வீடு (House)</option>
+                <option value="Shop">கடை / வணிகம் (Shop)</option>
+                <option value="Rental">வாடகை வீடு (Rental)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">தேடும் இடம் (Location) *</label>
+              <input type="text" id="reqTargetLocation" class="form-control" placeholder="Tenkasi / Courtallam" required>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">குறைந்தபட்ச பட்ஜெட் (₹)</label>
+              <input type="number" id="reqBudgetMin" class="form-control" placeholder="1000000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">அதிகபட்ச பட்ஜெட் (₹)</label>
+              <input type="number" id="reqBudgetMax" class="form-control" placeholder="2500000">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">விரும்பும் அளவு (Preferred Size)</label>
+              <input type="text" id="reqPreferredSize" class="form-control" placeholder="5 முதல் 8 சென்ட்">
+            </div>
+            <div class="form-group">
+              <label class="form-label">திசை (Facing)</label>
+              <select id="reqFacing" class="form-control">
+                <option value="East / North">East / North</option>
+                <option value="East">East</option>
+                <option value="North">North</option>
+                <option value="Any">Any Facing</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">தேவை விளக்கம் (Description)</label>
+            <textarea id="reqDescription" class="form-control" rows="3" placeholder="DTCP அப்ரூவல் உள்ள மனை தேவை, உடனடி பதிவு..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('requirementModal')">ரத்து</button>
+          <button type="submit" class="btn btn-gold">📋 பதிவு செய் (Save Requirement)</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Property Detailed Review Inspector Modal -->
+  <div class="modal" id="propertyInspectModal">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="inspectModalTitle">👁 விளம்பர முழு விவரங்கள் (Property Review)</h3>
+          <button class="modal-close" onclick="closeModal('propertyInspectModal')">✕</button>
+        </div>
+        <div class="modal-body" id="inspectModalBody" style="max-height: 70vh; overflow-y: auto;">
+          <!-- Injected via JS -->
+        </div>
+        <div class="modal-footer" id="inspectModalFooter" style="display: flex; justify-content: flex-end; gap: 10px;">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/admin.js"></script>
+</body>
+</html>

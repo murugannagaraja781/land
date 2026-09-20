@@ -76,15 +76,14 @@ class PropertyRepository {
     return all.where((p) {
       final type = p.propertyType.toLowerCase();
       final target = categoryId.toLowerCase();
-      if (target == 'plots' || target == 'plot') return type.contains('plot');
-      if (target == 'land') return type == 'land' || type.contains('land');
-      if (target == 'farmland' || target == 'farm land') return type.contains('farm');
-      if (target == 'house') return type.contains('house') || type.contains('villa');
-      if (target == 'apartment') return type.contains('apartment') || type.contains('flat');
-      if (target == 'rental') return p.isRental;
-      if (target == 'commercial') return type.contains('commercial');
-      if (target == 'shop') return type.contains('shop') || type.contains('retail');
-      if (target == 'office') return type.contains('office');
+      if (target == 'house' || target == 'villa') return type.contains('house') || type.contains('villa');
+      if (target == 'land' || target == 'plot' || target == 'plots') return type == 'land' || type.contains('land') || type.contains('plot');
+      if (target == 'farmland' || target == 'farm land' || target == 'farm' || target == 'thottam') return type.contains('farm') || type.contains('thottam');
+      if (target == 'shop' || target == 'commercial' || target == 'office') {
+        return type.contains('shop') || type.contains('commercial') || type.contains('office') || type.contains('retail') || p.rentalSubType == 'Commercial / Shop' || p.commercialAreaType != null;
+      }
+      if (target == 'apartment' || target == 'flat') return type.contains('apartment') || type.contains('flat');
+      if (target == 'rental' || target == 'lease') return p.isRental || type.contains('rental') || type.contains('lease') || p.rentalSubType != null;
       return type.contains(target);
     }).toList();
   }
@@ -132,15 +131,14 @@ class PropertyRepository {
       final target = categoryId.toLowerCase();
       results = results.where((p) {
         final type = p.propertyType.toLowerCase();
-        if (target == 'plots' || target == 'plot') return type.contains('plot');
-        if (target == 'land') return type == 'land' || type.contains('land');
-        if (target == 'farmland' || target == 'farm land') return type.contains('farm');
-        if (target == 'house') return type.contains('house') || type.contains('villa');
-        if (target == 'apartment') return type.contains('apartment') || type.contains('flat');
-        if (target == 'rental') return p.isRental;
-        if (target == 'commercial') return type.contains('commercial');
-        if (target == 'shop') return type.contains('shop');
-        if (target == 'office') return type.contains('office');
+        if (target == 'house' || target == 'villa') return type.contains('house') || type.contains('villa');
+        if (target == 'land' || target == 'plot' || target == 'plots') return type == 'land' || type.contains('land') || type.contains('plot');
+        if (target == 'farmland' || target == 'farm land' || target == 'farm' || target == 'thottam') return type.contains('farm') || type.contains('thottam');
+        if (target == 'shop' || target == 'commercial' || target == 'office') {
+          return type.contains('shop') || type.contains('commercial') || type.contains('office') || type.contains('retail') || p.rentalSubType == 'Commercial / Shop' || p.commercialAreaType != null;
+        }
+        if (target == 'apartment' || target == 'flat') return type.contains('apartment') || type.contains('flat');
+        if (target == 'rental' || target == 'lease') return p.isRental || type.contains('rental') || type.contains('lease') || p.rentalSubType != null;
         return type.contains(target);
       }).toList();
     }

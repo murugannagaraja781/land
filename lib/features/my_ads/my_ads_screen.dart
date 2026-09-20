@@ -7,6 +7,7 @@ import '../../core/widgets/empty_state_view.dart';
 import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';
 import '../../state/app_state_providers.dart';
+import '../auth/login_screen.dart';
 import '../post_property/post_property_wizard.dart';
 import '../property_detail/property_detail_screen.dart';
 import 'edit_property_screen.dart';
@@ -23,6 +24,30 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
 
   final List<String> _tabs = ['Active', 'Pending', 'Sold', 'Drafts'];
 
+  void _handlePostAdClick() {
+    final user = ref.read(userProfileProvider);
+    if (!user.isLoggedIn) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(
+            onLoginSuccess: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PostPropertyWizard()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PostPropertyWizard()),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,27 +62,23 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final allUserAds = ref.watch(propertiesProvider).where((p) => p.isUserPosted).toList();
+    final myAds = ref.watch(propertiesProvider).where((p) => p.isUserPosted).toList();
 
     // Stats calculations
-    final activeCount = allUserAds.where((p) => p.status == 'active').length;
-    final pendingCount = allUserAds.where((p) => p.status == 'pending').length;
-    final soldCount = allUserAds.where((p) => p.status == 'sold').length;
-    final totalViews = allUserAds.fold<int>(0, (sum, p) => sum + p.views);
-    final totalEnquiries = allUserAds.fold<int>(0, (sum, p) => sum + p.enquiries);
+    final activeCount = myAds.where((p) => p.status == 'active').length;
+    final pendingCount = myAds.where((p) => p.status == 'pending').length;
+    final soldCount = myAds.where((p) => p.status == 'sold').length;
+    final totalViews = myAds.fold<int>(0, (sum, p) => sum + p.views);
+    final totalEnquiries = myAds.fold<int>(0, (sum, p) => sum + p.enquiries);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('My Properties & Ads'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-            onPressed: () => ref.read(propertiesProvider.notifier).refresh(),
-          ),
-          const SizedBox(width: 4),
-        ],
+        title: const Text('எனது விளம்பரங்கள் (My Ads)'),
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        centerTitle: false,
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -66,20 +87,15 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
           indicatorWeight: 3,
           labelStyle: AppTextStyles.labelLarge,
           tabs: [
-            Tab(text: 'Active ($activeCount)'),
-            Tab(text: 'Pending ($pendingCount)'),
-            Tab(text: 'Sold ($soldCount)'),
-            const Tab(text: 'Drafts (0)'),
+            Tab(text: 'நேரலையில் ($activeCount)'),
+            Tab(text: 'பிராசஸிங் ($pendingCount)'),
+            Tab(text: 'விற்பனை ($soldCount)'),
+            const Tab(text: 'வரைவு (0)'),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const PostPropertyWizard()),
-          );
-        },
+        onPressed: _handlePostAdClick,
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded, size: 22),
@@ -100,7 +116,7 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem('Total Listings', '${allUserAds.length}', Icons.apartment_rounded),
+                _buildStatItem('Total Listings', '${myAds.length}', Icons.apartment_rounded),
                 _buildDivider(),
                 _buildStatItem('Total Views', '$totalViews', Icons.visibility_outlined),
                 _buildDivider(),
@@ -114,9 +130,9 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildAdsList(allUserAds.where((p) => p.status == 'active').toList(), 'active'),
-                _buildAdsList(allUserAds.where((p) => p.status == 'pending').toList(), 'pending'),
-                _buildAdsList(allUserAds.where((p) => p.status == 'sold').toList(), 'sold'),
+                _buildAdsList(myAds.where((p) => p.status == 'active').toList(), 'active'),
+                _buildAdsList(myAds.where((p) => p.status == 'pending').toList(), 'pending'),
+                _buildAdsList(myAds.where((p) => p.status == 'sold').toList(), 'sold'),
                 _buildAdsList([], 'draft'),
               ],
             ),
@@ -164,13 +180,8 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
         icon: Icons.holiday_village_outlined,
         title: title,
         message: msg,
-        actionText: '+ Post Property Now',
-        onAction: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const PostPropertyWizard()),
-          );
-        },
+        actionText: '+ புதிய விளம்பரம் பதிவு செய்',
+        onAction: _handlePostAdClick,
       );
     }
 
@@ -337,6 +348,34 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
               ],
             ),
           ),
+
+          // Prominent Processing / Under Review notice for Pending ads
+          if (ad.status.toLowerCase() == 'pending') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
+                ),
+                border: Border(top: BorderSide(color: Color(0xFFFDE68A))),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFFD97706)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '⏳ பிராசஸிங் (Under Review): நிர்வாகி சரிபார்த்தவுடன் உங்கள் விளம்பரம் நேரலையாக தோன்றும்.',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -351,22 +390,22 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
       case 'active':
         bg = AppColors.successLight;
         text = AppColors.success;
-        label = 'Active';
+        label = 'நேரலையில் (Active)';
         break;
       case 'pending':
-        bg = AppColors.warningLight;
-        text = AppColors.warning;
-        label = 'In Review';
+        bg = const Color(0xFFFEF3C7);
+        text = const Color(0xFFD97706);
+        label = '⏳ பிராசஸிங் (Processing)';
         break;
       case 'sold':
         bg = const Color(0xFFECEFF1);
         text = const Color(0xFF455A64);
-        label = 'Sold';
+        label = 'விற்பனையானது (Sold)';
         break;
       default:
         bg = AppColors.surfaceAlt;
         text = AppColors.textSecondary;
-        label = 'Draft';
+        label = 'வரைவு (Draft)';
     }
 
     return Container(

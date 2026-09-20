@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/l10n/locale_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
-import '../../core/utils/land_units.dart';
 import '../../core/widgets/animated_favorite_btn.dart';
 import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';

@@ -14,7 +14,7 @@ class AppTextStyles {
     double? letterSpacing,
   }) {
     try {
-      return GoogleFonts.outfit(
+      return GoogleFonts.poppins(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color,

@@ -44,20 +44,10 @@ class PropertyVisual extends StatelessWidget {
               Image.memory(
                 base64Decode(customImageBase64!),
                 fit: fit,
-                errorBuilder: (context, error, stackTrace) => CustomPaint(
-                  painter: _ArchitecturalPropertyPainter(
-                    propertyType: propertyType,
-                    index: visualIndex,
-                  ),
-                ),
+                errorBuilder: (context, error, stackTrace) => _buildAssetOrPainter(),
               )
             else
-              CustomPaint(
-                painter: _ArchitecturalPropertyPainter(
-                  propertyType: propertyType,
-                  index: visualIndex,
-                ),
-              ),
+              _buildAssetOrPainter(),
             // Subtle ambient gradient for depth & readability of text over images
             Positioned.fill(
               child: DecoratedBox(
@@ -101,6 +91,49 @@ class PropertyVisual extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildAssetOrPainter() {
+    final assetPath = _getAssetForPropertyType(propertyType, visualIndex);
+    return Image.asset(
+      assetPath,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) => CustomPaint(
+        painter: _ArchitecturalPropertyPainter(
+          propertyType: propertyType,
+          index: visualIndex,
+        ),
+      ),
+    );
+  }
+
+  String _getAssetForPropertyType(String type, int index) {
+    final lower = type.toLowerCase();
+    if (lower.contains('farm') ||
+        lower.contains('தோட்டம்') ||
+        lower.contains('விவசாய') ||
+        lower.contains('plots') ||
+        lower.contains('plot')) {
+      return 'assets/images/cat_farm.png';
+    } else if (lower.contains('land') ||
+        lower.contains('மனை') ||
+        lower.contains('நிலம்')) {
+      return 'assets/images/cat_land.png';
+    } else if (lower.contains('apartment') ||
+        lower.contains('flat') ||
+        lower.contains('அபார்ட்மெண்ட்')) {
+      return 'assets/images/cat_apartment.png';
+    } else if (lower.contains('rent') || lower.contains('வாடகை')) {
+      return 'assets/images/cat_rental.png';
+    } else if (lower.contains('commercial') ||
+        lower.contains('legal') ||
+        lower.contains('சட்ட')) {
+      return 'assets/images/cat_legal.png';
+    } else {
+      if (index % 3 == 1) return 'assets/images/cat_land.png';
+      if (index % 3 == 2) return 'assets/images/cat_farm.png';
+      return 'assets/images/cat_house.png';
+    }
   }
 }
 

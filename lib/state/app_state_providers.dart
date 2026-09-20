@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/local/local_storage_service.dart';
 import '../data/repositories/chat_repository.dart';
 import '../data/repositories/property_repository.dart';
+import '../models/buyer_requirement.dart';
 import '../models/chat_message.dart';
 import '../models/notification_item.dart';
 import '../models/property.dart';
@@ -106,7 +107,7 @@ class PropertiesNotifier extends Notifier<List<Property>> {
   Future<void> resetAllData() async {
     final storage = ref.read(localStorageServiceProvider);
     await storage.resetDemoData();
-    ref.read(selectedLocationProvider.notifier).setLocation('Porur, Chennai');
+    ref.read(selectedLocationProvider.notifier).setLocation('Tenkasi, Tamil Nadu');
     ref.read(selectedCategoryProvider.notifier).setCategory('all');
     state = _repo.getAllProperties();
   }
@@ -402,3 +403,29 @@ class UserProfileNotifier extends Notifier<UserProfile> {
 final userProfileProvider = NotifierProvider<UserProfileNotifier, UserProfile>(
   UserProfileNotifier.new,
 );
+
+// 11. Buyer Requirements (மக்களின் தேவை) Notifier
+class BuyerRequirementsNotifier extends Notifier<List<BuyerRequirement>> {
+  late final LocalStorageService _storage;
+
+  @override
+  List<BuyerRequirement> build() {
+    _storage = ref.watch(localStorageServiceProvider);
+    return _storage.getBuyerRequirements();
+  }
+
+  void refresh() {
+    state = _storage.getBuyerRequirements();
+  }
+
+  Future<void> addRequirement(BuyerRequirement req) async {
+    await _storage.addBuyerRequirement(req);
+    state = _storage.getBuyerRequirements();
+  }
+}
+
+final buyerRequirementsProvider =
+    NotifierProvider<BuyerRequirementsNotifier, List<BuyerRequirement>>(
+  BuyerRequirementsNotifier.new,
+);
+

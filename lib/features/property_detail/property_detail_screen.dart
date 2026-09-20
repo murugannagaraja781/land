@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/api_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/currency_formatter.dart';
@@ -27,6 +30,72 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
   final PageController _pageController = PageController();
   int _currentImageIndex = 0;
   bool _isDescriptionExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final properties = ref.read(propertiesProvider);
+      final p = properties.cast<Property?>().firstWhere(
+            (item) => item?.id == widget.propertyId,
+            orElse: () => null,
+          );
+      if (p != null) {
+        _logPropertyView(p);
+      }
+    });
+  }
+
+  Future<void> _logPropertyView(Property property) async {
+    try {
+      final user = ref.read(userProfileProvider);
+      final url = '${ApiConfig.instance.serverUrl}/activities.php';
+      await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userName': user.name.isNotEmpty ? user.name : 'Customer',
+          'userPhone': user.phone,
+          'userEmail': user.email,
+          'actionType': 'property_view',
+          'actionTitle': 'சொத்து விவரம் பார்வை (Property View)',
+          'propId': property.id,
+          'propTitle': property.title,
+          'propType': property.propertyType,
+          'propLocation': property.location,
+          'sellerName': property.agent.name,
+          'sellerPhone': property.agent.phone,
+          'amount': 0.0,
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
+  }
+
+  Future<void> _logContactActivity(Property property, String contactMethod) async {
+    try {
+      final user = ref.read(userProfileProvider);
+      final url = '${ApiConfig.instance.serverUrl}/activities.php';
+      await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userName': user.name.isNotEmpty ? user.name : 'Customer',
+          'userPhone': user.phone,
+          'userEmail': user.email,
+          'actionType': 'contact_unlock_free',
+          'actionTitle': 'உரிமையாளர் தொடர்பு பார்க்கப்பட்டது ($contactMethod)',
+          'propId': property.id,
+          'propTitle': property.title,
+          'propType': property.propertyType,
+          'propLocation': property.location,
+          'sellerName': property.agent.name,
+          'sellerPhone': property.agent.phone,
+          'amount': 0.0,
+          'details': '$contactMethod மூலம் உரிமையாளர் ${property.agent.name} தொடர்பு விவரம் பார்வையிடப்பட்டது.',
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -307,8 +376,13 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                       const Divider(height: 1, color: AppColors.border),
                       const SizedBox(height: 20),
 
-                      // 3. Quick Specs Grid
-                      Text('Property Overview', style: AppTextStyles.h4),
+                      // 3. Category-Specific Bespoke Showcase Card
+                      _buildCategorySpecificShowcase(property),
+
+                      const SizedBox(height: 16),
+
+                      // 4. Quick Specs Grid
+                      Text('சொத்து முக்கிய விவரங்கள் (Property Overview)', style: AppTextStyles.h4),
                       const SizedBox(height: 12),
                       GridView.count(
                         shrinkWrap: true,
@@ -316,12 +390,41 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                         crossAxisCount: 3,
                         mainAxisSpacing: 10,
                         crossAxisSpacing: 10,
-                        childAspectRatio: 1.3,
+                        childAspectRatio: 1.25,
                         children: [
                           _buildSpecBox(
                             icon: Icons.straighten_rounded,
-                            title: 'Area',
-                            value: '${CurrencyFormatter.formatNumber(property.areaSqFt)} sq.ft',
+                            title: 'அளவு (Area)',
+                            value: LandUnitConverter.formatDisplayArea(
+                              sqFt: property.areaSqFt,
+                              landUnit: property.landUnit,
+                              landUnitValue: property.landUnitValue,
+                            ),
+                          ),
+                          _buildSpecBox(
+                            icon: Icons.person_pin_circle_outlined,
+                            title: 'பதிவு செய்தவர்',
+                            value: property.posterType ?? 'Direct Owner',
+                          ),
+                          _buildSpecBox(
+                            icon: Icons.verified_outlined,
+                            title: 'அங்கீகாரம்',
+                            value: property.approvalType ?? (property.propertyType == 'Farmland' ? 'தோட்டம்' : 'Verified'),
+                          ),
+                          _buildSpecBox(
+                            icon: Icons.account_balance_outlined,
+                            title: 'வங்கி கடன்',
+                            value: property.isBankLoanAvailable ? 'உண்டு (Available)' : 'இல்லை (No Loan)',
+                          ),
+                          _buildSpecBox(
+                            icon: Icons.price_change_outlined,
+                            title: 'விலை பேசலாம்',
+                            value: property.isPriceNegotiable ? 'பேசலாம் (Yes)' : 'Fixed Price',
+                          ),
+                          _buildSpecBox(
+                            icon: Icons.explore_outlined,
+                            title: 'திசை (Facing)',
+                            value: property.facing.isNotEmpty ? property.facing.split(' ').first : 'East',
                           ),
                           if (property.bedrooms != null)
                             _buildSpecBox(
@@ -329,29 +432,129 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                               title: 'Bedrooms',
                               value: '${property.bedrooms} BHK',
                             ),
-                          if (property.bathrooms != null)
+                          if (property.hasLift)
                             _buildSpecBox(
-                              icon: Icons.bathtub_outlined,
-                              title: 'Bathrooms',
-                              value: '${property.bathrooms} Baths',
+                              icon: Icons.elevator_outlined,
+                              title: 'லிஃப்ட் வசதி',
+                              value: 'உண்டு (Yes)',
                             ),
-                          _buildSpecBox(
-                            icon: Icons.chair_outlined,
-                            title: 'Furnishing',
-                            value: property.furnishingStatus,
-                          ),
-                          _buildSpecBox(
-                            icon: Icons.explore_outlined,
-                            title: 'Facing',
-                            value: property.facing,
-                          ),
-                          _buildSpecBox(
-                            icon: Icons.layers_outlined,
-                            title: 'Floor',
-                            value: property.floor,
-                          ),
+                          if (property.waterSource != null)
+                            _buildSpecBox(
+                              icon: Icons.water_drop_outlined,
+                              title: 'குடிநீர் வசதி',
+                              value: property.waterSource!.split(' ').first,
+                            ),
+                          if (property.hasTrees)
+                            _buildSpecBox(
+                              icon: Icons.park_outlined,
+                              title: 'மரங்கள்',
+                              value: 'உண்டு (Yes)',
+                            ),
+                          if (property.hasIncome)
+                            _buildSpecBox(
+                              icon: Icons.currency_rupee_rounded,
+                              title: 'மகசூல் வருமானம்',
+                              value: 'உண்டு (Income)',
+                            ),
+                          if (property.advanceAmount != null && property.advanceAmount! > 0)
+                            _buildSpecBox(
+                              icon: Icons.wallet_outlined,
+                              title: 'அட்வான்ஸ்',
+                              value: '₹${property.advanceAmount!.toInt()}',
+                            ),
+                          if (property.commercialAreaType != null)
+                            _buildSpecBox(
+                              icon: Icons.storefront_outlined,
+                              title: 'பகுதி வகை',
+                              value: property.commercialAreaType!,
+                            ),
                         ],
                       ),
+
+                      // Farmland extra highlights
+                      if (property.treesDetails != null && property.treesDetails!.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.park_rounded, color: Colors.green, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'மரங்கள்: ${property.treesDetails}',
+                                  style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.bold, fontSize: 12.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      if (property.incomeDetails != null && property.incomeDetails!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.monetization_on_outlined, color: Colors.orange, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'வருமானம்: ${property.incomeDetails}',
+                                  style: TextStyle(color: Colors.brown.shade900, fontWeight: FontWeight.bold, fontSize: 12.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      // Land & Plot feature chips
+                      if (property.landFeatures.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text('நில வசதிகள் (Land Amenities & Infrastructure)', style: AppTextStyles.labelLarge),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: property.landFeatures.map((feat) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.primary),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    feat,
+                                    style: const TextStyle(
+                                      color: AppColors.primaryDark,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
 
                       const SizedBox(height: 24),
                       const Divider(height: 1, color: AppColors.border),
@@ -864,6 +1067,505 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
     );
   }
 
+  // ==========================================
+  // CATEGORY-SPECIFIC BESPOKE SHOWCASE CARDS
+  // ==========================================
+
+  Widget _buildCategorySpecificShowcase(Property property) {
+    final type = property.propertyType.toLowerCase();
+
+    if (type.contains('shop') || type.contains('commercial') || property.rentalSubType == 'கடை' || property.rentalSubType == 'அலுவலகம்') {
+      return _buildShopOfficeShowcase(property);
+    } else if (type.contains('farm') || property.rentalSubType == 'தோட்டம் குத்தகை') {
+      return _buildFarmlandShowcase(property);
+    } else if (type.contains('land') || type.contains('plot') || property.rentalSubType == 'காலி இடம்') {
+      return _buildLandShowcase(property);
+    } else if (type.contains('apartment')) {
+      return _buildApartmentShowcase(property);
+    } else if (type.contains('house') || type.contains('villa')) {
+      return _buildHouseShowcase(property);
+    } else if (property.isRental) {
+      return _buildRentalShowcase(property);
+    }
+    return const SizedBox.shrink();
+  }
+
+  // 1. 🏪 Shop & Office Showcase (கடை / அலுவலகம்)
+  Widget _buildShopOfficeShowcase(Property property) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.storefront_rounded, color: Color(0xFFB45309), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'வணிக வசதிகள் (Shop & Office Specs)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: Color(0xFF78350F),
+                    ),
+                  ),
+                ],
+              ),
+              if (property.commercialAreaType != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB45309),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    property.commercialAreaType!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Facilities Grid (EB, Fan, Table, Water, Shutter)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildFeatureTag(
+                icon: Icons.electrical_services_rounded,
+                label: property.powerPhase ?? 'EB மின் வசதி',
+                isAvailable: property.powerPhase != null || property.hasFan,
+              ),
+              _buildFeatureTag(
+                icon: Icons.air_rounded,
+                label: 'ஃபேன் (Fan)',
+                isAvailable: property.hasFan,
+              ),
+              _buildFeatureTag(
+                icon: Icons.table_restaurant_rounded,
+                label: 'மேஜை (Table)',
+                isAvailable: property.hasTable,
+              ),
+              _buildFeatureTag(
+                icon: Icons.water_drop_rounded,
+                label: 'தண்ணீர் (Water)',
+                isAvailable: property.hasWaterSupply,
+              ),
+              _buildFeatureTag(
+                icon: Icons.sensor_door_rounded,
+                label: 'ஷட்டர் (Shutter)',
+                isAvailable: property.hasShutter,
+              ),
+            ],
+          ),
+          if (property.advanceAmount != null && property.advanceAmount! > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFCD34D)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'முன்பணம் (Advance Amount):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF78350F)),
+                  ),
+                  Text(
+                    CurrencyFormatter.formatIndian(property.advanceAmount!),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFB45309)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 2. 🌴 Farmland Showcase (தோட்டம்)
+  Widget _buildFarmlandShowcase(Property property) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF0FDF4), Color(0xFFDCFCE7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.agriculture_rounded, color: Color(0xFF15803D), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'விவசாய நில விவரங்கள் (Farmland Specs)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF14532D),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildFeatureTag(
+                icon: Icons.bolt_rounded,
+                label: 'இலவச விவசாய EB',
+                isAvailable: true,
+              ),
+              _buildFeatureTag(
+                icon: Icons.water_rounded,
+                label: 'போர்வெல் / கிணறு',
+                isAvailable: true,
+              ),
+              if (property.hasTrees)
+                _buildFeatureTag(
+                  icon: Icons.park_rounded,
+                  label: property.treesDetails ?? 'தென்னை / பழ மரங்கள்',
+                  isAvailable: true,
+                ),
+              if (property.hasIncome)
+                _buildFeatureTag(
+                  icon: Icons.monetization_on_rounded,
+                  label: property.incomeDetails ?? 'மாத மகசூல் வருமானம்',
+                  isAvailable: true,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. 🏞️ Land & Plot Showcase (நிலம் / மனை)
+  Widget _buildLandShowcase(Property property) {
+    final sqFt = property.areaSqFt;
+    final cents = LandUnitConverter.fromSqFt(sqFt, 'Cents');
+    final kuzhi = LandUnitConverter.fromSqFt(sqFt, 'Kuzhi');
+    final acres = LandUnitConverter.fromSqFt(sqFt, 'Acres');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF0F9FF), Color(0xFFE0F2FE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.terrain_rounded, color: Color(0xFF0284C7), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'நில அளவீடு விவரங்கள் (Land Matrix)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: Color(0xFF0369A1),
+                    ),
+                  ),
+                ],
+              ),
+              if (property.approvalType != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    property.approvalType!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Multi-unit conversions box
+          Row(
+            children: [
+              Expanded(
+                child: _buildUnitBox('சென்ட் (Cent)', '$cents'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildUnitBox('குழி (Kuzhi)', '$kuzhi'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildUnitBox('ஏக்கர் (Acre)', '$acres'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 4. 🏢 Apartment Showcase (அபார்ட்மெண்ட்)
+  Widget _buildApartmentShowcase(Property property) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDDD6FE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.apartment_rounded, color: Color(0xFF7C3AED), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'அபார்ட்மெண்ட் சிறப்பம்சங்கள் (Apartment Specs)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF5B21B6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (property.bedrooms != null)
+                _buildFeatureTag(icon: Icons.bed_rounded, label: '${property.bedrooms} BHK Flat', isAvailable: true),
+              _buildFeatureTag(icon: Icons.elevator_rounded, label: property.hasLift ? 'லிஃப்ட் வசதி (Lift)' : 'No Lift', isAvailable: property.hasLift),
+              _buildFeatureTag(icon: Icons.directions_car_rounded, label: 'Covered Parking', isAvailable: true),
+              if (property.waterSource != null)
+                _buildFeatureTag(icon: Icons.water_drop_rounded, label: property.waterSource!, isAvailable: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 5. 🏠 House / Villa Showcase (வீடு / வில்லா)
+  Widget _buildHouseShowcase(Property property) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.home_work_rounded, color: Color(0xFF0F172A), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'தனிவீடு விவரங்கள் (Individual House Specs)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (property.bedrooms != null)
+                _buildFeatureTag(icon: Icons.bed_rounded, label: '${property.bedrooms} Bedrooms', isAvailable: true),
+              _buildFeatureTag(icon: Icons.fence_rounded, label: 'காம்பவுண்ட் சுவர்', isAvailable: true),
+              _buildFeatureTag(icon: Icons.directions_car_rounded, label: 'Car Parking', isAvailable: true),
+              _buildFeatureTag(icon: Icons.water_drop_rounded, label: property.waterSource ?? 'குடிநீர் & போர்வெல்', isAvailable: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 6. 🔑 Rental / Lease Showcase
+  Widget _buildRentalShowcase(Property property) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF7ED), Color(0xFFFFEDD5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.vpn_key_rounded, color: Color(0xFFEA580C), size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    property.isLease ? 'குத்தகை விவரங்கள் (Lease)' : 'வாடகை விவரங்கள் (Rental)',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: Color(0xFF9A3412),
+                    ),
+                  ),
+                ],
+              ),
+              if (property.rentalSubType != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEA580C),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    property.rentalSubType!,
+                    style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
+                  ),
+                ),
+            ],
+          ),
+          if (property.advanceAmount != null && property.advanceAmount! > 0) ...[
+            const SizedBox(height: 10),
+            Text(
+              'முன்பணம் (Advance): ₹${property.advanceAmount!.toInt()}',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFFC2410C)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnitBox(String title, String val) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
+      ),
+      child: Column(
+        children: [
+          Text(title, style: const TextStyle(fontSize: 10.5, color: Color(0xFF0369A1), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(val, style: const TextStyle(fontSize: 15, color: Color(0xFF0C4A6E), fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureTag({required IconData icon, required String label, required bool isAvailable}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isAvailable ? Colors.white : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isAvailable ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFCBD5E1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: isAvailable ? AppColors.primary : AppColors.textMuted),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: isAvailable ? const Color(0xFF0F172A) : AppColors.textMuted,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleCallAgent(BuildContext context, Property property) {
     showDialog(
       context: context,
@@ -909,6 +1611,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
           OutlinedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
+              _logContactActivity(property, 'WhatsApp');
               final cleanPhone = property.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
               final text = Uri.encodeComponent('Hi ${property.agent.name}, I am interested in "${property.title}" listed on Tenkasi Dreams Land.');
               final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
@@ -925,6 +1628,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
+              _logContactActivity(property, 'Phone Call');
               final clean = property.agent.phone.replaceAll(RegExp(r'[^0-9+]'), '');
               final telUri = Uri(scheme: 'tel', path: clean);
               if (await canLaunchUrl(telUri)) {

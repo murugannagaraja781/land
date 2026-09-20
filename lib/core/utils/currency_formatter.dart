@@ -4,6 +4,8 @@ class CurrencyFormatter {
   CurrencyFormatter._();
 
   /// Formats price in Indian Lakhs and Crores (e.g. ₹45 Lakhs, ₹1.25 Cr)
+  static String formatIndian(double amount) => formatIndianPrice(amount);
+
   static String formatIndianPrice(double amount, {bool isRental = false}) {
     if (amount <= 0) return 'Price on Request';
 

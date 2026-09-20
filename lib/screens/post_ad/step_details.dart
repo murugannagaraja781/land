@@ -149,7 +149,7 @@ class StepDetails extends ConsumerWidget {
                 ),
                 Switch(
                   value: isDtcpVerified,
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                   onChanged: onDtcpToggled,
                 ),
               ],

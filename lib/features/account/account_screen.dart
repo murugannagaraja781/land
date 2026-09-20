@@ -4,9 +4,14 @@ import '../../core/config/api_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../state/app_state_providers.dart';
+import '../auth/login_screen.dart';
+import '../calculator/land_calculator_screen.dart';
+import '../requirements/buyer_requirements_screen.dart';
 import 'favorites_screen.dart';
 import 'notifications_screen.dart';
 import 'saved_searches_screen.dart';
+import 'user_leads_and_activities_screen.dart';
+import '../legal/legal_policy_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
   final VoidCallback? onNavigateToMyAds;
@@ -24,6 +29,16 @@ class AccountScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Account'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.login_rounded),
+            tooltip: 'Google Login',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded),
             onPressed: () {
@@ -100,8 +115,10 @@ class AccountScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              profile.phone,
+                              profile.email.isNotEmpty ? profile.email : profile.phone,
                               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 3),
                             Row(
@@ -120,7 +137,109 @@ class AccountScreen extends ConsumerWidget {
                     ],
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
+
+                  // Google Sign-In / Switch Account Action Button
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.account_circle_rounded, color: AppColors.primary, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Google Login / Sign In',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  'Google மூலம் உள்நுழைக அல்லது கணக்கை மாற்றுக',
+                                  style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textMuted),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (profile.isLoggedIn) ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () {
+                        ref.read(userProfileProvider.notifier).updateProfile(
+                          profile.copyWith(
+                            name: 'விருந்தினர் (Guest)',
+                            phone: '',
+                            email: '',
+                            isVerified: false,
+                            isLoggedIn: false,
+                          ),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('கணக்கிலிருந்து வெளியேறினீர்கள் (Signed Out)'),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: AppColors.textPrimary,
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.logout_rounded, color: AppColors.error, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              'கணக்கிலிருந்து வெளியேறு (Sign Out)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 14),
                   const Divider(height: 1, color: AppColors.borderLight),
                   const SizedBox(height: 14),
 
@@ -193,6 +312,34 @@ class AccountScreen extends ConsumerWidget {
                 },
               ),
               _buildSettingsTile(
+                icon: Icons.contact_phone_rounded,
+                iconColor: const Color(0xFFD97706),
+                title: 'என் விளம்பரங்களை பார்த்தவர்கள் (My Leads)',
+                subtitle: 'யார் உங்கள் தொடர்பு எண்ணை பார்த்தார்கள்?',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 0),
+                    ),
+                  );
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.history_rounded,
+                iconColor: const Color(0xFF0284C7),
+                title: 'நான் பார்த்த தொடர்புகள் (Unlocked Contacts)',
+                subtitle: 'நீங்கள் அன்லாக் செய்த உரிமையாளர் விவரங்கள்',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 1),
+                    ),
+                  );
+                },
+              ),
+              _buildSettingsTile(
                 icon: Icons.saved_search_rounded,
                 title: 'Saved Searches & Alerts',
                 subtitle: 'Custom filter notifications',
@@ -200,6 +347,39 @@ class AccountScreen extends ConsumerWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
+                  );
+                },
+                isLast: true,
+              ),
+            ]),
+
+            const SizedBox(height: 24),
+
+            // 2.5 Quick Tools & Community
+            Text('Quick Tools & Community', style: AppTextStyles.h4),
+            const SizedBox(height: 10),
+            _buildGroupedCard([
+              _buildSettingsTile(
+                icon: Icons.calculate_rounded,
+                iconColor: const Color(0xFF059669),
+                title: 'Land Unit Calculator',
+                subtitle: 'நில அளவை மாற்றி (Cent, Kuzhi, Acre, Hectare)',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LandCalculatorScreen()),
+                  );
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.people_alt_rounded,
+                iconColor: const Color(0xFF9333EA),
+                title: 'Buyer & Tenant Requirements',
+                subtitle: 'மக்களின் தேவை (Post & Find Matching Buyers)',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BuyerRequirementsScreen()),
                   );
                 },
                 isLast: true,
@@ -256,6 +436,48 @@ class AccountScreen extends ConsumerWidget {
                 subtitle: 'Frequently asked questions',
                 onTap: () {
                   _showFAQDialog(context);
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.description_outlined,
+                iconColor: const Color(0xFF0F172A),
+                title: 'விதிமுறைகள் (Terms & Conditions)',
+                subtitle: 'பயன்பாட்டு விதிமுறைகள் மற்றும் நிபந்தனைகள்',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalPolicyScreen(initialTabIndex: 0),
+                    ),
+                  );
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.privacy_tip_outlined,
+                iconColor: const Color(0xFF059669),
+                title: 'தனியுரிமைக் கொள்கை (Privacy Policy)',
+                subtitle: 'Google Play Store இணக்கமான தரவுப் பாதுகாப்பு',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalPolicyScreen(initialTabIndex: 1),
+                    ),
+                  );
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.currency_rupee_rounded,
+                iconColor: const Color(0xFFD97706),
+                title: 'பணத்தைத் திரும்பப்பெறுதல் (Refund Policy)',
+                subtitle: 'ரீஃபண்ட் மற்றும் ரத்து செய்யும் கொள்கை',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalPolicyScreen(initialTabIndex: 2),
+                    ),
+                  );
                 },
               ),
               _buildSettingsTile(

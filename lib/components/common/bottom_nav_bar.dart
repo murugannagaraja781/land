@@ -36,11 +36,11 @@ class BottomNavBar extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 62,
+          height: 64,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // 1. Home Tab (OLX Tab 1)
+              // 1. Home Tab
               _buildTabItem(
                 ref: ref,
                 index: 0,
@@ -49,7 +49,7 @@ class BottomNavBar extends ConsumerWidget {
                 activeIcon: Icons.home_rounded,
               ),
 
-              // 2. Chats Tab (OLX Tab 2)
+              // 2. Chats Tab
               _buildTabItem(
                 ref: ref,
                 index: 1,
@@ -59,7 +59,7 @@ class BottomNavBar extends ConsumerWidget {
                 badgeCount: unreadChatsCount,
               ),
 
-              // 3. Center Prominent "SELL / POST AD" Button (Classic OLX)
+              // 3. Center Prominent "POST AD" Button — Blue solid circle
               GestureDetector(
                 onTap: onPostAdTap,
                 behavior: HitTestBehavior.opaque,
@@ -69,48 +69,46 @@ class BottomNavBar extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 46,
-                        height: 46,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFFFFCE32),
-                            width: 3.5,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF002F34),
-                              width: 2.5,
-                            ),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.add_rounded,
-                              color: Color(0xFF002F34),
-                              size: 24,
-                            ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: 28,
                           ),
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        ref.tr('nav_sell'),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF002F34),
-                          letterSpacing: 0.8,
+                      SizedBox(
+                        width: 70,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            ref.tr('nav_sell'),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                          ),
                         ),
                       ),
                     ],
@@ -118,16 +116,16 @@ class BottomNavBar extends ConsumerWidget {
                 ),
               ),
 
-              // 4. My Ads Tab (OLX Tab 4)
+              // 4. My Ads Tab
               _buildTabItem(
                 ref: ref,
                 index: 2,
                 label: ref.tr('nav_my_ads'),
-                icon: Icons.favorite_border_rounded,
-                activeIcon: Icons.favorite_rounded,
+                icon: Icons.article_outlined,
+                activeIcon: Icons.article_rounded,
               ),
 
-              // 5. Account Tab (OLX Tab 5)
+              // 5. Account Tab
               _buildTabItem(
                 ref: ref,
                 index: 3,
@@ -164,7 +162,7 @@ class BottomNavBar extends ConsumerWidget {
                 Icon(
                   isSelected ? activeIcon : icon,
                   size: 23,
-                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  color: isSelected ? AppColors.primary : AppColors.textMuted,
                 ),
                 if (badgeCount > 0)
                   Positioned(
@@ -189,15 +187,21 @@ class BottomNavBar extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected ? AppColors.primary : AppColors.textMuted,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

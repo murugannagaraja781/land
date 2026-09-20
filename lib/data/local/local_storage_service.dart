@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../models/buyer_requirement.dart';
 import '../../models/chat_message.dart';
 import '../../models/notification_item.dart';
 import '../../models/property.dart';
@@ -15,6 +16,7 @@ class LocalStorageService {
   static const String _keySavedSearches = 'nestprime_saved_searches_v1';
   static const String _keyUserProfile = 'nestprime_user_profile_v1';
   static const String _keyCurrentLocation = 'nestprime_current_location_v1';
+  static const String _keyBuyerRequirements = 'tenkasi_buyer_requirements_v1';
 
   final SharedPreferences _prefs;
 
@@ -50,7 +52,11 @@ class LocalStorageService {
     }
     // Check current location
     if (!_prefs.containsKey(_keyCurrentLocation)) {
-      await _prefs.setString(_keyCurrentLocation, 'Porur, Chennai');
+      await _prefs.setString(_keyCurrentLocation, 'Tenkasi, Tamil Nadu');
+    }
+    // Check buyer requirements (மக்களின் தேவை)
+    if (!_prefs.containsKey(_keyBuyerRequirements)) {
+      await saveBuyerRequirements(SeedData.initialBuyerRequirements);
     }
   }
 
@@ -301,11 +307,37 @@ class LocalStorageService {
   }
 
   String getLocale() {
-    return _prefs.getString('tenkasi_locale_v1') ?? 'en';
+    return _prefs.getString('tenkasi_locale_v2') ?? 'ta';
   }
 
   Future<void> saveLocale(String locale) async {
-    await _prefs.setString('tenkasi_locale_v1', locale);
+    await _prefs.setString('tenkasi_locale_v2', locale);
+  }
+
+  // ==========================================
+  // BUYER REQUIREMENTS (மக்களின் தேவை)
+  // ==========================================
+
+  List<BuyerRequirement> getBuyerRequirements() {
+    final raw = _prefs.getString(_keyBuyerRequirements);
+    if (raw == null || raw.isEmpty) return SeedData.initialBuyerRequirements;
+    try {
+      final List<dynamic> decoded = jsonDecode(raw);
+      return decoded.map((item) => BuyerRequirement.fromMap(item)).toList();
+    } catch (_) {
+      return SeedData.initialBuyerRequirements;
+    }
+  }
+
+  Future<void> saveBuyerRequirements(List<BuyerRequirement> reqs) async {
+    final encoded = jsonEncode(reqs.map((r) => r.toMap()).toList());
+    await _prefs.setString(_keyBuyerRequirements, encoded);
+  }
+
+  Future<void> addBuyerRequirement(BuyerRequirement req) async {
+    final current = getBuyerRequirements();
+    final updated = [req, ...current];
+    await saveBuyerRequirements(updated);
   }
 
   // ==========================================
