@@ -114,13 +114,14 @@ class AppConstants {
   // Locations for switching and filtering
   static const List<String> popularLocations = [
     'Tenkasi, Tamil Nadu',
-    'Tirunelveli, Tamil Nadu',
+    'Pavoorchatram, Tamil Nadu',
     'Courtallam, Tamil Nadu',
-    'Sankarankovil, Tamil Nadu',
-    'Kadayanallur, Tamil Nadu',
     'Surandai, Tamil Nadu',
     'Alangulam, Tamil Nadu',
+    'Kadayanallur, Tamil Nadu',
     'Shenkottai, Tamil Nadu',
+    'Sankarankovil, Tamil Nadu',
+    'Tirunelveli, Tamil Nadu',
     'Rajapalayam, Tamil Nadu',
     'Virudhunagar, Tamil Nadu',
     'Madurai, Tamil Nadu',

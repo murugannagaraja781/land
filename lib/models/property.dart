@@ -24,6 +24,7 @@ class Property {
   final int enquiries;
   final bool isVerified;
   final bool isFeatured;
+  final bool isPremium;
   final bool isUserPosted; // True if listed by the user (appears in My Ads)
   final int? superBuiltUpSqFt;
   final int? carpetAreaSqFt;
@@ -91,6 +92,7 @@ class Property {
     this.enquiries = 0,
     this.isVerified = true,
     this.isFeatured = false,
+    this.isPremium = false,
     this.isUserPosted = false,
     this.superBuiltUpSqFt,
     this.carpetAreaSqFt,
@@ -151,6 +153,7 @@ class Property {
     int? enquiries,
     bool? isVerified,
     bool? isFeatured,
+    bool? isPremium,
     bool? isUserPosted,
     int? superBuiltUpSqFt,
     int? carpetAreaSqFt,
@@ -208,6 +211,7 @@ class Property {
       enquiries: enquiries ?? this.enquiries,
       isVerified: isVerified ?? this.isVerified,
       isFeatured: isFeatured ?? this.isFeatured,
+      isPremium: isPremium ?? this.isPremium,
       isUserPosted: isUserPosted ?? this.isUserPosted,
       superBuiltUpSqFt: superBuiltUpSqFt ?? this.superBuiltUpSqFt,
       carpetAreaSqFt: carpetAreaSqFt ?? this.carpetAreaSqFt,
@@ -268,6 +272,7 @@ class Property {
       'enquiries': enquiries,
       'isVerified': isVerified,
       'isFeatured': isFeatured,
+      'isPremium': isPremium,
       'isUserPosted': isUserPosted,
       'superBuiltUpSqFt': superBuiltUpSqFt,
       'carpetAreaSqFt': carpetAreaSqFt,
@@ -330,6 +335,7 @@ class Property {
       enquiries: map['enquiries'] ?? 0,
       isVerified: map['isVerified'] ?? true,
       isFeatured: map['isFeatured'] ?? false,
+      isPremium: map['isPremium'] == true || map['isPremium'] == 1 || map['isPremium'] == '1',
       isUserPosted: map['isUserPosted'] ?? false,
       superBuiltUpSqFt: map['superBuiltUpSqFt'],
       carpetAreaSqFt: map['carpetAreaSqFt'],

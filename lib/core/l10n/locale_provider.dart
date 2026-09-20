@@ -33,6 +33,11 @@ extension LocalizationExt on WidgetRef {
     final locale = watch(localeProvider);
     return AppStrings.get(key, locale.languageCode);
   }
+
+  bool get isTamil {
+    final locale = watch(localeProvider);
+    return locale.languageCode == 'ta';
+  }
 }
 
 extension BuildContextLocExt on BuildContext {

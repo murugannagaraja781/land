@@ -7,11 +7,27 @@ import 'data/local/local_storage_service.dart';
 import 'features/navigation/main_navigation_screen.dart';
 import 'state/app_state_providers.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'firebase_options.dart';
 import 'core/l10n/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase and Google Sign-In in parallel
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    if (!kIsWeb) {
+      await GoogleSignIn.instance.initialize();
+    }
+  } catch (e) {
+    debugPrint('Firebase / GoogleSignIn initialization error: $e');
+  }
 
   // Set transparent system status bar for modern edge-to-edge feel
   SystemChrome.setSystemUIOverlayStyle(

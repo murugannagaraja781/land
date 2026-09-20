@@ -92,6 +92,8 @@ class SeedData {
       floor: 'Ground',
       maintenanceMonthly: 300,
       landmark: 'Near New Collectorate & Bypass',
+      latitude: 8.9594,
+      longitude: 77.3160,
       imageKeys: ['plot_1', 'plot_2'],
       amenities: [
         '24x7 Security',
@@ -136,6 +138,8 @@ class SeedData {
       floor: 'Ground Floor',
       maintenanceMonthly: 500,
       landmark: 'Near Pavoorchatram Railway Gate',
+      latitude: 8.9056,
+      longitude: 77.3828,
       imageKeys: ['house_1', 'house_2'],
       amenities: [
         'Covered Car Parking',
@@ -180,6 +184,8 @@ class SeedData {
       floor: 'Farmhouse Ground',
       maintenanceMonthly: 2000,
       landmark: 'Near Courtallam Main Falls Road',
+      latitude: 8.9324,
+      longitude: 77.2690,
       imageKeys: ['farm_1', 'farm_2'],
       amenities: [
         'Power Backup',
@@ -228,6 +234,8 @@ class SeedData {
       floor: 'Ground Floor',
       maintenanceMonthly: 800,
       landmark: 'Opposite New Bus Stand Entrance',
+      latitude: 8.9610,
+      longitude: 77.3120,
       imageKeys: ['shop_1'],
       amenities: [
         'Power Backup',
@@ -276,6 +284,8 @@ class SeedData {
       floor: '2nd of 4 Floors',
       maintenanceMonthly: 1200,
       landmark: 'Near Government Arts College',
+      latitude: 8.9772,
+      longitude: 77.4244,
       imageKeys: ['apartment_1', 'apartment_2'],
       amenities: [
         'High Speed Elevator',
@@ -321,6 +331,8 @@ class SeedData {
       floor: 'Ground Floor',
       maintenanceMonthly: 300,
       landmark: 'Near ICICI Bank, Tenkasi',
+      latitude: 8.9580,
+      longitude: 77.3140,
       imageKeys: ['rental_1'],
       amenities: [
         'Covered Car Parking',
@@ -359,6 +371,8 @@ class SeedData {
       floor: 'Ground Floor',
       maintenanceMonthly: 500,
       landmark: 'Near Kasi Viswanathar Temple',
+      latitude: 8.9590,
+      longitude: 77.3115,
       imageKeys: ['house_3', 'house_1'],
       amenities: [
         'Rainwater Harvesting',
@@ -401,6 +415,8 @@ class SeedData {
       floor: 'Ground',
       maintenanceMonthly: 0,
       landmark: 'Near Sengottai Railway Station',
+      latitude: 8.9857,
+      longitude: 77.2472,
       imageKeys: ['plot_1'],
       amenities: [
         '24x7 Security',
@@ -456,6 +472,8 @@ class SeedData {
       floor: 'Ground',
       maintenanceMonthly: 1000,
       landmark: 'Near Kadayanallur Bypass',
+      latitude: 9.0754,
+      longitude: 77.3482,
       imageKeys: ['farm_1', 'farm_2'],
       amenities: [
         'Rainwater Harvesting',
@@ -511,6 +529,8 @@ class SeedData {
       floor: 'Ground',
       maintenanceMonthly: 0,
       landmark: 'Near Alangulam Bus Stand Road',
+      latitude: 8.8711,
+      longitude: 77.4983,
       imageKeys: ['plot_1', 'plot_2'],
       amenities: [
         '24x7 Security',

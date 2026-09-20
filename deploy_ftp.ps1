@@ -9,6 +9,9 @@ $remoteRoot = ""  # Root of the FTP account is already /public_html
 # List of files to upload (Local relative -> Remote relative)
 $files = @(
     @{ Local = "api\properties.php";           Remote = "/api/properties.php" },
+    @{ Local = "api\activities.php";           Remote = "/api/activities.php" },
+    @{ Local = "api\chat.php";                 Remote = "/api/chat.php" },
+    @{ Local = "api\users.php";                Remote = "/api/users.php" },
     @{ Local = "api\config.php";               Remote = "/api/config.php" },
     @{ Local = "api\ping.php";                 Remote = "/api/ping.php" },
     @{ Local = "api\create-order.php";         Remote = "/api/create-order.php" },
@@ -19,6 +22,7 @@ $files = @(
     @{ Local = "api\stats.php";                Remote = "/api/stats.php" },
     @{ Local = "api\init_db.php";              Remote = "/api/init_db.php" },
     @{ Local = "api\payments.php";             Remote = "/api/payments.php" },
+    @{ Local = "api\otp.php";                  Remote = "/api/otp.php" },
     @{ Local = "api\.env";                     Remote = "/api/.env" },
     @{ Local = "api\data\properties.json";     Remote = "/api/data/properties.json" },
     @{ Local = "api\data\activities.json";     Remote = "/api/data/activities.json" },

@@ -19,13 +19,83 @@ import '../property_detail/property_detail_screen.dart';
 import '../requirements/buyer_requirements_screen.dart';
 import '../search/search_screen.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNavigateToSearch;
 
   const HomeScreen({super.key, this.onNavigateToSearch});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final ScrollController _scrollController;
+  final GlobalKey _categoryListingsKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onCategorySelected(String catId, String activeCategory) {
+    if (activeCategory == catId) {
+      ref.read(selectedCategoryProvider.notifier).setCategory('all');
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
+    } else {
+      ref.read(selectedCategoryProvider.notifier).setCategory(catId);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCategoryListings();
+      });
+    }
+  }
+
+  void _scrollToCategoryListings() {
+    if (!mounted) return;
+    final targetContext = _categoryListingsKey.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.02,
+      );
+    } else if (_scrollController.hasClients) {
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final target = 480.0.clamp(0.0, maxScroll);
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  void _resetToAllCategories() {
+    ref.read(selectedCategoryProvider.notifier).setCategory('all');
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeCategory = ref.watch(selectedCategoryProvider);
     final featured = ref.watch(featuredPropertiesProvider);
     final latest = ref.watch(latestPropertiesProvider);
@@ -49,11 +119,12 @@ class HomeScreen extends ConsumerWidget {
           ref.read(propertiesProvider.notifier).refresh();
         },
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           slivers: [
             // 1. Navy Blue App Bar (Logo, Location, Search)
             SliverToBoxAdapter(
-              child: AppBarWidget(onNavigateToSearch: onNavigateToSearch),
+              child: AppBarWidget(onNavigateToSearch: widget.onNavigateToSearch),
             ),
 
             // 2. Hero Banner
@@ -62,7 +133,7 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             const SliverToBoxAdapter(
-              child: SizedBox(height: 12),
+              child: SizedBox(height: 16),
             ),
 
             // 3. Quick Services: மக்களின் தேவை & நில அளவை கால்குலேட்டர்
@@ -70,13 +141,17 @@ class HomeScreen extends ConsumerWidget {
               child: _buildQuickToolsRow(context, ref),
             ),
 
-            // 3.1 Legal Advice Lawyer Consultation Banner (NEW!)
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 14),
+            ),
+
+            // 3.1 Legal Advice Lawyer Consultation Banner
             SliverToBoxAdapter(
               child: _buildLegalAdviceBanner(context),
             ),
 
             const SliverToBoxAdapter(
-              child: SizedBox(height: 14),
+              child: SizedBox(height: 18),
             ),
 
             // 4. Category Image Grid (Balanced 2×3: வீடு, நிலம், தோட்டம், கடை, அபார்ட்மெண்ட், வாடகைக்கு)
@@ -85,7 +160,7 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             const SliverToBoxAdapter(
-              child: SizedBox(height: 12),
+              child: SizedBox(height: 18),
             ),
 
             // 5. Verification Banner
@@ -94,14 +169,15 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             const SliverToBoxAdapter(
-              child: SizedBox(height: 8),
+              child: SizedBox(height: 18),
             ),
 
             // 5. Category-filtered view or Full Feed
             if (activeCategory != 'all') ...[
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  key: _categoryListingsKey,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -110,9 +186,7 @@ class HomeScreen extends ConsumerWidget {
                         style: AppTextStyles.h4.copyWith(fontWeight: FontWeight.w700),
                       ),
                       TextButton(
-                        onPressed: () {
-                          ref.read(selectedCategoryProvider.notifier).setCategory('all');
-                        },
+                        onPressed: _resetToAllCategories,
                         child: Text(ref.tr('sec_show_all')),
                       ),
                     ],
@@ -126,20 +200,18 @@ class HomeScreen extends ConsumerWidget {
               if (displayedList.isEmpty)
                 SliverToBoxAdapter(
                   child: EmptyStateWidget(
-                    onAction: () {
-                      ref.read(selectedCategoryProvider.notifier).setCategory('all');
-                    },
+                    onAction: _resetToAllCategories,
                   ),
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.67,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.63,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 16,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -163,10 +235,10 @@ class HomeScreen extends ConsumerWidget {
               if (featured.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 290,
+                    height: 305,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       physics: const BouncingScrollPhysics(),
                       itemCount: featured.length,
                       itemBuilder: (context, index) {
@@ -185,17 +257,24 @@ class HomeScreen extends ConsumerWidget {
               if (nearby.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 10),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          ref.tr('sec_nearby'),
-                          style: AppTextStyles.h3.copyWith(fontSize: 17, fontWeight: FontWeight.w800),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.near_me_rounded, size: 18, color: Color(0xFF10B981)),
+                            const SizedBox(width: 6),
+                            Text(
+                              ref.isTamil ? 'அருகிலுள்ளவை' : 'Nearby',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            ),
+                          ],
                         ),
                         Text(
-                          ref.tr('sec_recommended_sub'),
-                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted),
+                          ref.isTamil ? 'தொலைவு வரிசையில்' : 'By Distance',
+                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMuted, fontSize: 11),
                         ),
                       ],
                     ),
@@ -203,10 +282,10 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 290,
+                    height: 305,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       physics: const BouncingScrollPhysics(),
                       itemCount: nearby.length,
                       itemBuilder: (context, index) {
@@ -225,7 +304,7 @@ class HomeScreen extends ConsumerWidget {
               // Fresh Recommendations / Latest Listings Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 14),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -244,13 +323,13 @@ class HomeScreen extends ConsumerWidget {
 
               // 2-Column Grid Feed
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    childAspectRatio: 0.67,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.63,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 16,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -268,7 +347,7 @@ class HomeScreen extends ConsumerWidget {
 
             // Bottom padding
             const SliverToBoxAdapter(
-              child: SizedBox(height: 30),
+              child: SizedBox(height: 36),
             ),
           ],
         ),
@@ -294,8 +373,8 @@ class HomeScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () {
-            if (onNavigateToSearch != null) {
-              onNavigateToSearch!();
+            if (widget.onNavigateToSearch != null) {
+              widget.onNavigateToSearch!();
             } else {
               Navigator.push(
                 context,
@@ -356,9 +435,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 if (activeCategory != 'all')
                   GestureDetector(
-                    onTap: () {
-                      ref.read(selectedCategoryProvider.notifier).setCategory('all');
-                    },
+                    onTap: _resetToAllCategories,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -387,11 +464,7 @@ class HomeScreen extends ConsumerWidget {
                   child: PropertyCategoryChip(
                     category: cat,
                     isSelected: activeCategory == cat.id,
-                    onTap: () {
-                      ref.read(selectedCategoryProvider.notifier).setCategory(
-                        activeCategory == cat.id ? 'all' : cat.id,
-                      );
-                    },
+                    onTap: () => _onCategorySelected(cat.id, activeCategory),
                   ),
                 ),
               );
@@ -407,11 +480,7 @@ class HomeScreen extends ConsumerWidget {
                   child: PropertyCategoryChip(
                     category: cat,
                     isSelected: activeCategory == cat.id,
-                    onTap: () {
-                      ref.read(selectedCategoryProvider.notifier).setCategory(
-                        activeCategory == cat.id ? 'all' : cat.id,
-                      );
-                    },
+                    onTap: () => _onCategorySelected(cat.id, activeCategory),
                   ),
                 ),
               );
@@ -682,7 +751,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'சென்ட், குழி, ஏக்கர், ஹெக்டேர்',
+                      'சென்ட், குழி, ஏக்கர்',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 9.5,
@@ -704,20 +773,24 @@ class HomeScreen extends ConsumerWidget {
   // ===== Recommended Header =====
   Widget _buildRecommendedHeader(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Icon(Icons.auto_awesome, size: 20, color: Color(0xFF0284C7)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              ref.tr('sec_recommended_title'),
-              style: const TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF0284C7)),
+              const SizedBox(width: 6),
+              Text(
+                ref.isTamil ? 'பரிந்துரைகள்' : 'Recommended',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
               ),
-            ),
+            ],
           ),
           InkWell(
             onTap: () {
@@ -726,13 +799,20 @@ class HomeScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const SearchScreen()),
               );
             },
-            child: Text(
-              ref.tr('sec_recommended_view_all'),
-              style: const TextStyle(
-                color: Color(0xFF0284C7),
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  ref.isTamil ? 'அனைத்தும்' : 'View All',
+                  style: const TextStyle(
+                    color: Color(0xFF0284C7),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.arrow_forward_ios_rounded, size: 11, color: Color(0xFF0284C7)),
+              ],
             ),
           ),
         ],
@@ -790,12 +870,16 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          const Text(
-                            '⚖️ வழக்கறிஞர் சட்ட ஆலோசனை',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w800,
+                          Flexible(
+                            child: Text(
+                              '⚖️ வழக்கறிஞர் ஆலோசனை',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -807,14 +891,14 @@ class HomeScreen extends ConsumerWidget {
                             ),
                             child: const Text(
                               'நேரடி உதவி',
-                              style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'பத்திர பதிவு, பட்டா, EC & சொத்து ஆவண சரிபார்ப்பு',
+                        'பத்திர பதிவு, பட்டா, EC சரிபார்ப்பு',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.82),
                           fontSize: 10.5,

@@ -19,7 +19,8 @@ const AppState = {
   activeCategory: 'all',
   activeStatus: 'all',
   searchQuery: '',
-  editingPropertyId: null
+  editingPropertyId: null,
+  liveUsers: []
 };
 
 // Initialize app when DOM is loaded
@@ -28,13 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupLandCalculator();
 
-  // Background Auto-Polling for Real-Time User Posts (every 15 seconds)
+  // Background Auto-Polling for Real-Time User Posts & Live Users (every 10 seconds)
   setInterval(async () => {
     if (AppState.token) {
       await fetchNotifications();
       await fetchProperties(true);
+      await loadLiveUsers(true);
     }
-  }, 15000);
+  }, 10000);
 });
 
 /* ==================== AUTHENTICATION ==================== */
@@ -115,7 +117,8 @@ async function loadDashboardData() {
     fetchEnvConfig(),
     loadPaymentsData(),
     fetchAppConfig(),
-    loadActivitiesData()
+    loadActivitiesData(),
+    loadLiveUsers(true)
   ]);
 }
 
@@ -224,6 +227,10 @@ function renderPropertiesTable() {
     filtered = filtered.filter(p => (p.status || '').toLowerCase() === AppState.activeStatus.toLowerCase());
   }
 
+  if (AppState.activeAccess && AppState.activeAccess !== 'all') {
+    filtered = filtered.filter(p => AppState.activeAccess === 'paid' ? !!p.isPremium : !p.isPremium);
+  }
+
   if (AppState.searchQuery.trim()) {
     const q = AppState.searchQuery.trim().toLowerCase();
     filtered = filtered.filter(p => 
@@ -238,7 +245,7 @@ function renderPropertiesTable() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align:center; padding: 40px; color: var(--text-muted);">
+        <td colspan="8" style="text-align:center; padding: 40px; color: var(--text-muted);">
           விளம்பரங்கள் எதுவும் கிடைக்கவில்லை (No properties found).
         </td>
       </tr>
@@ -281,6 +288,17 @@ function renderPropertiesTable() {
           <button class="badge ${p.isVerified ? 'badge-active' : 'badge-pending'}" style="cursor:pointer; border:none;" onclick="togglePropertyVerification('${p.id}')">
             ${p.isVerified ? '✓ சரிபார்க்கப்பட்டது' : '⌛ சரிபார்க்கவும்'}
           </button>
+        </td>
+        <td>
+          <button class="badge ${p.isPremium ? 'badge-gold' : 'badge-emerald'}" 
+                  style="cursor:pointer; border:none; padding:4px 9px; font-weight:700; font-size:11.5px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" 
+                  onclick="togglePropertyPremium('${p.id}')"
+                  title="க்ளிக் செய்து இலவசம் அல்லது கட்டணமாக மாற்றலாம்">
+            ${p.isPremium ? '💎 கட்டணம் (Paid)' : '🟢 இலவசம் (Free)'}
+          </button>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">
+            ${p.isPremium ? '₹10 பேவால்' : 'நேரடி தொடர்பு'}
+          </div>
         </td>
         <td>
           <div style="display:flex; flex-direction:column; gap:4px;">
@@ -824,21 +842,46 @@ function updateSidebarPendingBadge() {
 function renderPendingApprovalsSection() {
   const section = document.getElementById('pendingApprovalsSection');
   const container = document.getElementById('pendingCardsContainer');
+  const dedicatedContainer = document.getElementById('pendingCardsDedicatedContainer');
   const countBadge = document.getElementById('pendingBoxBadgeCount');
-  if (!section || !container) return;
+  const sectionBadge = document.getElementById('pendingSectionBadgeCount');
+  const sidebarBadge = document.getElementById('sidebarPendingBadge');
 
   const pending = AppState.pendingProperties || [];
+
+  if (sidebarBadge) {
+    if (pending.length > 0) {
+      sidebarBadge.innerText = pending.length;
+      sidebarBadge.style.display = 'inline-block';
+    } else {
+      sidebarBadge.style.display = 'none';
+    }
+  }
+
+  if (sectionBadge) {
+    sectionBadge.innerText = `${pending.length} காத்திருப்பில்`;
+  }
+
   if (pending.length === 0) {
-    section.style.display = 'none';
+    if (section) section.style.display = 'none';
+    if (dedicatedContainer) {
+      dedicatedContainer.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
+          <div style="font-size: 48px; margin-bottom: 12px;">🎉</div>
+          <div style="font-size: 16px; font-weight: 700; color: #fff;">தற்போது காத்திருப்பில் புதிய விளம்பரங்கள் எதுவும் இல்லை!</div>
+          <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">அனைத்து பயனர் விளம்பரங்களும் சரிபார்க்கப்பட்டு நேரலையில் உள்ளன.</div>
+        </div>
+      `;
+    }
     return;
   }
 
-  section.style.display = 'block';
+  if (section) section.style.display = 'block';
   if (countBadge) {
     countBadge.innerText = `${pending.length} புதிய விளம்பரம் காத்திருப்பில்`;
   }
 
-  container.innerHTML = pending.map(p => {
+  const cardsHtml = pending.map(p => {
     const formattedPrice = formatTamilPrice(p.price, p.propertyType);
     const catIcon = getCategoryIcon(p.propertyType);
     const areaDisplay = p.landUnitValue ? `${p.landUnitValue} ${p.landUnit || 'Cent'}` : (p.areaSqFt ? `${p.areaSqFt} Sq.Ft` : '');
@@ -847,7 +890,7 @@ function renderPendingApprovalsSection() {
     const cleanPhone = (sellerPhone || '').replace(/[^0-9]/g, '');
 
     return `
-      <div class="pending-card">
+      <div class="pending-card" style="border: 1px solid ${p.isPremium ? '#f59e0b' : 'rgba(255,255,255,0.08)'};">
         <div>
           <div class="pending-card-top">
             <span class="pending-card-type">${catIcon} ${escapeHtml(p.propertyType || 'Land')}</span>
@@ -869,6 +912,14 @@ function renderPendingApprovalsSection() {
               ` : ''}
             </div>
           </div>
+
+          <!-- Free / Paid Permission Toggle on Pending Card -->
+          <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); padding:8px 12px; border-radius:8px;">
+            <span style="font-size:11.5px; color:var(--text-muted);">அனுமதி வகை:</span>
+            <button class="badge ${p.isPremium ? 'badge-gold' : 'badge-emerald'}" style="cursor:pointer; border:none; padding:3px 9px; font-weight:700; font-size:11px;" onclick="togglePropertyPremium('${p.id}')">
+              ${p.isPremium ? '💎 கட்டண விளம்பரம் (Paid)' : '🟢 இலவச விளம்பரம் (Free)'}
+            </button>
+          </div>
         </div>
 
         <div class="pending-actions-bar">
@@ -885,6 +936,42 @@ function renderPendingApprovalsSection() {
       </div>
     `;
   }).join('');
+
+  if (container) container.innerHTML = cardsHtml;
+  if (dedicatedContainer) dedicatedContainer.innerHTML = cardsHtml;
+}
+
+async function togglePropertyPremium(id) {
+  const p = AppState.properties.find(item => item.id == id);
+  if (!p) return;
+  const newStatus = !p.isPremium;
+
+  try {
+    const res = await fetch(`${API_BASE}/properties.php?action=toggle_premium`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, isPremium: newStatus })
+    });
+    const data = await res.json();
+    if (data.success) {
+      p.isPremium = newStatus;
+      showToast(newStatus ? '💎 விளம்பரம் கட்டணம் (Paid / Premium) என மாற்றப்பட்டது!' : '🟢 விளம்பரம் இலவசம் (Free) என மாற்றப்பட்டது!', 'success');
+      renderPropertiesTable();
+      renderPendingApprovalsSection();
+    } else {
+      showToast(data.message || 'மாற்றம் தோல்வியடைந்தது', 'error');
+    }
+  } catch (err) {
+    p.isPremium = newStatus;
+    showToast('உள்ளூர் நினைவகத்தில் மாற்றப்பட்டது', 'info');
+    renderPropertiesTable();
+    renderPendingApprovalsSection();
+  }
+}
+
+function handleAccessFilterChange(val) {
+  AppState.activeAccess = val;
+  renderPropertiesTable();
 }
 
 async function approveProperty(id) {
@@ -940,6 +1027,19 @@ async function rejectProperty(id) {
   }
 }
 
+function switchInspectMainImage(url, el) {
+  const mainImg = document.getElementById('inspectMainImage');
+  if (mainImg) mainImg.src = url;
+  document.querySelectorAll('.inspect-thumb').forEach(t => {
+    t.style.borderColor = 'rgba(255,255,255,0.15)';
+    t.style.transform = 'scale(1)';
+  });
+  if (el) {
+    el.style.borderColor = '#fbbf24';
+    el.style.transform = 'scale(1.05)';
+  }
+}
+
 function openPropertyInspectModal(id) {
   const p = AppState.properties.find(item => item.id == id);
   if (!p) return;
@@ -953,72 +1053,200 @@ function openPropertyInspectModal(id) {
   const isPending = (p.status || '').toLowerCase() === 'pending';
   const formattedPrice = formatTamilPrice(p.price, p.propertyType);
   const catIcon = getCategoryIcon(p.propertyType);
+  const typeLower = (p.propertyType || '').toLowerCase();
   const sellerName = p.sellerName || (p.agent ? p.agent.name : 'Direct Owner');
   const sellerPhone = p.sellerPhone || p.contactPhone || (p.agent ? p.agent.phone : '+91 98941 74944');
+  const posterType = p.posterType || (p.agent && p.agent.agencyName ? p.agent.agencyName : 'நேரடி உரிமையாளர் (Direct Owner)');
   const cleanPhone = (sellerPhone || '').replace(/[^0-9]/g, '');
 
+  const images = (p.imageUrls && p.imageUrls.length > 0) ? p.imageUrls : [];
+  const amenities = [...(p.amenities || []), ...(p.landFeatures || [])];
+
   if (titleEl) {
-    titleEl.innerHTML = `👁️ ${escapeHtml(p.title)} <span style="font-size:12px; color:var(--text-muted);">(ID: ${p.id})</span>`;
+    titleEl.innerHTML = `👁️ ${escapeHtml(p.title)} <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(ID: ${p.id})</span>`;
+  }
+
+  // Dynamic Category Specific Rows
+  let categorySpecificHtml = '';
+
+  if (typeLower.includes('farm') || typeLower.includes('thottam') || typeLower.includes('தோட்டம்')) {
+    categorySpecificHtml = `
+      <div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="font-size:12.5px; font-weight:700; color:#34d399; margin-bottom:10px;">🌾 விவசாய நிலம் / தோட்டம் கூடுதல் விவரங்கள்:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
+          <div><span style="color:var(--text-muted); font-size:11px;">💧 நீர் ஆதாரம்:</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.waterSource || 'கிணறு / போர்வெல்')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">⚡ மின் இணைப்பு (EB):</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.powerPhase || 'இலவச விவசாய மின்சாரம்')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🌴 மரங்கள் விவரம்:</span> <b style="color:#fff; font-size:12.5px;">${p.hasTrees ? escapeHtml(p.treesDetails || 'மரங்கள் உள்ளன') : 'இல்லை'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">💵 ஆண்டு வருமானம்:</span> <b style="color:#fff; font-size:12.5px;">${p.hasIncome ? escapeHtml(p.incomeDetails || 'வருமானம் உண்டு') : 'குறிப்பிடப்படவில்லை'}</b></div>
+        </div>
+      </div>
+    `;
+  } else if (typeLower.includes('house') || typeLower.includes('villa') || typeLower.includes('apartment') || typeLower.includes('வீடு')) {
+    categorySpecificHtml = `
+      <div style="background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.25); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="font-size:12.5px; font-weight:700; color:#60a5fa; margin-bottom:10px;">🏠 வீடு / அடுக்குமாடி கூடுதல் விவரங்கள்:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+          <div><span style="color:var(--text-muted); font-size:11px;">🛏️ படுக்கையறைகள் (BHK):</span> <b style="color:#fff; font-size:12.5px;">${p.bedrooms ? p.bedrooms + ' BHK' : '-'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🚿 கழிப்பறைகள்:</span> <b style="color:#fff; font-size:12.5px;">${p.bathrooms || '-'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🏢 தளம் (Floor):</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.floor || 'Ground Floor')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🛋️ பர்னிஷிங் நிலை:</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.furnishingStatus || 'Unfurnished')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🛗 லிப்ட் வசதி:</span> <b style="color:#fff; font-size:12.5px;">${p.hasLift ? '✓ உள்ளது' : '✕ இல்லை'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🧹 மாதாந்திர பராமரிப்பு:</span> <b style="color:#fff; font-size:12.5px;">${p.maintenanceMonthly ? '₹' + p.maintenanceMonthly : 'இல்லை'}</b></div>
+        </div>
+      </div>
+    `;
+  } else if (typeLower.includes('shop') || typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('வணிக')) {
+    categorySpecificHtml = `
+      <div style="background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.25); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="font-size:12.5px; font-weight:700; color:#fbbf24; margin-bottom:10px;">🏢 வணிக வளாகம் / கடை விவரங்கள்:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+          <div><span style="color:var(--text-muted); font-size:11px;">🚪 ஷட்டர் வசதி:</span> <b style="color:#fff; font-size:12.5px;">${p.hasShutter ? '✓ உண்டு' : '✕ இல்லை'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">⚡ மின் இணைப்பு (Power):</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.powerPhase || '3 Phase')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🏢 வணிக வகை:</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.commercialAreaType || 'Commercial Space')}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🪑 உள்புற வசதிகள்:</span> <b style="color:#fff; font-size:12.5px;">${[p.hasTable ? 'மேஜை' : '', p.hasFan ? 'மின்விசிறி' : '', p.hasWaterSupply ? 'தண்ணீர்' : ''].filter(Boolean).join(', ') || 'குறிப்பிடப்படவில்லை'}</b></div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rental Specific
+  let rentalHtml = '';
+  if (p.isRental || typeLower.includes('rental') || typeLower.includes('lease') || typeLower.includes('வாடகை')) {
+    rentalHtml = `
+      <div style="background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.25); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="font-size:12.5px; font-weight:700; color:#c084fc; margin-bottom:10px;">🔑 வாடகை / குத்தகை விவரங்கள்:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+          <div><span style="color:var(--text-muted); font-size:11px;">💵 முன்பணம் (Advance):</span> <b style="color:#38bdf8; font-size:13px;">${p.advanceAmount ? '₹' + Number(p.advanceAmount).toLocaleString('en-IN') : 'பேசித் தீர்மானிக்கலாம்'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">📑 ஒப்பந்த வகை:</span> <b style="color:#fff; font-size:12.5px;">${p.isLease ? 'குத்தகை (Lease)' : 'மாத வாடகை (Monthly Rent)'}</b></div>
+          <div><span style="color:var(--text-muted); font-size:11px;">🏷️ வாடகை உள்வகை:</span> <b style="color:#fff; font-size:12.5px;">${escapeHtml(p.rentalSubType || 'குடும்பம் / வணிகம்')}</b></div>
+        </div>
+      </div>
+    `;
   }
 
   bodyEl.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+    <!-- Top Bar: Category, Status, Price -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px; border-bottom:1px solid rgba(255,255,255,0.07); padding-bottom:12px;">
       <div>
         <span class="badge badge-category" style="font-size:13px; padding:4px 10px;">${catIcon} ${escapeHtml(p.propertyType || 'Land')}</span>
         <span class="badge ${p.status === 'active' ? 'badge-active' : (isPending ? 'badge-pending' : 'badge-sold')}" style="margin-left:6px;">
           ${p.status === 'active' ? '✓ நேரலை (Active)' : (isPending ? '⏳ காத்திருப்பு (Pending Approval)' : p.status)}
         </span>
+        <button class="badge ${p.isPremium ? 'badge-gold' : 'badge-emerald'}" style="cursor:pointer; border:none; margin-left:6px; font-size:12px; padding:4px 10px; font-weight:700;" onclick="togglePropertyPremium('${p.id}'); openPropertyInspectModal('${p.id}');" title="க்ளிக் செய்து இலவசம் / கட்டணம் மாற்றலாம்">
+          ${p.isPremium ? '💎 கட்டண விளம்பரம் (Paid)' : '🟢 இலவச விளம்பரம் (Free)'}
+        </button>
+        ${p.isFeatured ? '<span class="badge" style="background:#f59e0b; color:#000; font-weight:700; margin-left:6px;">⭐ Featured</span>' : ''}
       </div>
-      <div style="font-size:22px; font-weight:800; color:var(--accent-gold);">${formattedPrice}</div>
+      <div style="text-align:right;">
+        <div style="font-size:22px; font-weight:800; color:var(--accent-gold);">${formattedPrice}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${p.isPriceNegotiable ? '✓ விலை பேசித் தீர்மானிக்கலாம்' : 'நிலையான விலை (Fixed)'}</div>
+      </div>
     </div>
+
+    <!-- Activity & Views Quick Bar -->
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex; gap:16px; align-items:center; font-size:12.5px;">
+        <span style="color:#38bdf8; font-weight:600;">👁️ பார்வைகள்: <b>${p.views || 0}</b> முறை</span>
+        <span style="color:#34d399; font-weight:600;">📞 தொடர்புகள்: <b>${p.enquiries || 0}</b></span>
+        <span style="color:var(--text-muted); font-size:11px;">📅 ${p.postedDate ? new Date(p.postedDate).toLocaleDateString('ta-IN') : '-'}</span>
+      </div>
+      <div>
+        <button type="button" class="btn btn-secondary" style="font-size:11.5px; padding:4px 10px; font-weight:600;" onclick="closeModal('propertyInspectModal'); openPropertyViewersModal('${p.id}');">
+          👥 யார் யார் பார்த்தார்கள்? (Viewers)
+        </button>
+      </div>
+    </div>
+
+    <!-- Photo Gallery -->
+    ${images.length > 0 ? `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:12px; font-weight:700; color:var(--text-secondary);">🖼️ சொத்து புகைப்படங்கள் (${images.length}):</span>
+          <span style="font-size:11px; color:var(--text-muted);">படத்தை பெரிதாக்க க்ளிக் செய்யவும்</span>
+        </div>
+        <div style="position:relative; width:100%; height:260px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); background:#000;">
+          <img id="inspectMainImage" src="${images[0]}" alt="Property Image" style="width:100%; height:100%; object-fit:cover; transition:0.3s ease;">
+          <a href="${images[0]}" target="_blank" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.6); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; text-decoration:none;">🔍 முழு படம்</a>
+        </div>
+        ${images.length > 1 ? `
+          <div style="display:flex; gap:8px; overflow-x:auto; padding:8px 0; margin-top:6px;">
+            ${images.map((url, idx) => `
+              <img src="${url}" onclick="switchInspectMainImage('${url}', this)" class="inspect-thumb" style="width:68px; height:52px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${idx === 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; transition:0.2s;" title="படம் ${idx + 1}">
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    ` : `
+      <div style="padding:16px; text-align:center; background:rgba(255,255,255,0.02); border-radius:8px; border:1px dashed rgba(255,255,255,0.1); color:var(--text-muted); margin-bottom:16px; font-size:12px;">
+        📷 சொத்து புகைப்படம் எதுவும் பதிவேற்றப்படவில்லை (No photos uploaded)
+      </div>
+    `}
 
     <!-- Seller Verification Box -->
     <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:14px 16px; margin-bottom:18px;">
-      <div style="font-weight:700; color:#fbbf24; margin-bottom:6px; font-size:13px;">👤 விற்பனையாளர் / உரிமையாளர் தொடர்பு விபரம்:</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-weight:700; color:#fbbf24; font-size:13px;">👤 விற்பனையாளர் / பதிவிட்டவர் தொடர்பு விபரம்:</span>
+        <span class="badge" style="background:rgba(245,158,11,0.2); color:#fbbf24; font-size:11px;">${escapeHtml(posterType)}</span>
+      </div>
       <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:4px;">${escapeHtml(sellerName)}</div>
       <div style="font-size:14px; color:var(--text-primary); margin-bottom:10px;">📞 ${escapeHtml(sellerPhone)}</div>
       <div style="display:flex; gap:10px;">
         ${cleanPhone ? `
           <a href="tel:${cleanPhone}" class="btn btn-emerald" style="padding:6px 14px; font-size:12px; text-decoration:none;">📞 உடனே அழைக்க</a>
-          <a href="https://wa.me/91${cleanPhone}?text=${encodeURIComponent('வணக்கம் ' + sellerName + ', தென்காசி கனவுகள் மூலம் நீங்கள் சமர்ப்பித்த ' + p.title + ' விளம்பரம் தொடர்பாக அழைக்கிறோம்.')}" target="_blank" class="btn" style="background:#25d366; color:#fff; padding:6px 14px; font-size:12px; text-decoration:none;">💬 WhatsApp</a>
+          <a href="https://wa.me/91${cleanPhone}?text=${encodeURIComponent('வணக்கம் ' + sellerName + ', தென்காசி கனவுகள் தளம் மூலம் நீங்கள் பதிவிட்ட ' + p.title + ' விளம்பரம் தொடர்பாக தொடர்பு கொள்கிறோம்.')}" target="_blank" class="btn" style="background:#25d366; color:#fff; padding:6px 14px; font-size:12px; text-decoration:none;">💬 WhatsApp</a>
         ` : ''}
       </div>
     </div>
 
-    <!-- Details Grid -->
+    <!-- General Specifications Grid -->
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; background:rgba(255,255,255,0.02); padding:14px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
       <div>
         <div style="font-size:11px; color:var(--text-muted);">இடம் / ஊர் (Location)</div>
-        <div style="font-size:13px; font-weight:600; color:#fff;">📍 ${escapeHtml(p.location || 'Tenkasi')}</div>
+        <div style="font-size:13px; font-weight:600; color:#fff;">📍 ${escapeHtml(p.location || 'Tenkasi')}${p.landmark ? ' (' + escapeHtml(p.landmark) + ')' : ''}</div>
       </div>
       <div>
-        <div style="font-size:11px; color:var(--text-muted);">நில அளவு (Area / Size)</div>
+        <div style="font-size:11px; color:var(--text-muted);">நில அளவு / பரப்பு (Area)</div>
         <div style="font-size:13px; font-weight:600; color:#fff;">📐 ${p.landUnitValue ? p.landUnitValue + ' ' + (p.landUnit || 'Cent') : (p.areaSqFt ? p.areaSqFt + ' Sq.Ft' : '-')}</div>
       </div>
       <div>
         <div style="font-size:11px; color:var(--text-muted);">அங்கீகாரம் (Approval)</div>
-        <div style="font-size:13px; font-weight:600; color:#10b981;">✓ ${escapeHtml(p.approvalType || 'DTCP Approved')}</div>
+        <div style="font-size:13px; font-weight:600; color:#10b981;">✓ ${escapeHtml(p.approvalType || 'DTCP / பஞ்சாயத்து அப்ரூவல்')}</div>
       </div>
       <div>
         <div style="font-size:11px; color:var(--text-muted);">திசை (Facing)</div>
         <div style="font-size:13px; font-weight:600; color:#fff;">🧭 ${escapeHtml(p.facing || 'East')}</div>
       </div>
+      <div>
+        <div style="font-size:11px; color:var(--text-muted);">வங்கி கடன் வசதி (Bank Loan)</div>
+        <div style="font-size:13px; font-weight:600; color:#fff;">${p.isBankLoanAvailable ? '✓ வங்கி கடன் கிடைக்கும்' : '✕ வங்கி கடன் இல்லை'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px; color:var(--text-muted);">விலை பேசித் தீர்மானிக்கலாமா?</div>
+        <div style="font-size:13px; font-weight:600; color:#fff;">${p.isPriceNegotiable ? '✓ ஆம் (Negotiable)' : '✕ நிலையானது (Fixed)'}</div>
+      </div>
     </div>
+
+    <!-- Category Specific Specifications (Farmland / House / Commercial / Rental) -->
+    ${categorySpecificHtml}
+    ${rentalHtml}
+
+    <!-- Amenities & Features Badges -->
+    ${amenities.length > 0 ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">✨ வசதிகள் & சிறப்பு அம்சங்கள் (Amenities):</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          ${amenities.map(a => `<span class="badge" style="background:rgba(59,130,246,0.12); color:#93c5fd; border:1px solid rgba(59,130,246,0.25); font-size:11.5px; padding:3px 8px;">✓ ${escapeHtml(a)}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}
 
     <!-- Description -->
     <div style="margin-bottom:16px;">
       <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">📝 விளம்பர விளக்கம் (Description):</div>
-      <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.05); padding:12px; border-radius:8px; font-size:13px; line-height:1.6; color:#cbd5e1;">
+      <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.05); padding:12px; border-radius:8px; font-size:13px; line-height:1.6; color:#cbd5e1; white-space:pre-line;">
         ${escapeHtml(p.description || 'விளக்கம் எதுவும் உள்ளிடப்படவில்லை.')}
       </div>
     </div>
-
-    ${p.imageUrls && p.imageUrls.length > 0 ? `
-      <div style="margin-bottom:16px;">
-        <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">🖼️ சொத்து புகைப்படம்:</div>
-        <img src="${p.imageUrls[0]}" alt="Property Image" style="max-width:100%; height:200px; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
-      </div>
-    ` : ''}
   `;
 
   if (footerEl) {
@@ -1032,6 +1260,7 @@ function openPropertyInspectModal(id) {
     } else {
       footerEl.innerHTML = `
         <button type="button" class="btn btn-secondary" onclick="closeModal('propertyInspectModal')">மூடு</button>
+        <button type="button" class="btn btn-danger" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.4); color:#fca5a5;" onclick="confirmDeleteProperty('${p.id}'); closeModal('propertyInspectModal');">🗑️ நீக்கு</button>
         <button type="button" class="btn btn-gold" onclick="closeModal('propertyInspectModal'); openEditPropertyModal('${p.id}')">✏️ திருத்து</button>
       `;
     }
@@ -1293,11 +1522,24 @@ function populateEnvForm(cfg) {
   setVal('env_SOCIAL_TELEGRAM', cfg.SOCIAL_TELEGRAM);
 
   // Monetization & Razorpay
+  setVal('env_RAZORPAY_MODE', cfg.RAZORPAY_MODE || 'test');
   setVal('env_RAZORPAY_ACCOUNT_ID', cfg.RAZORPAY_ACCOUNT_ID);
-  setVal('env_RAZORPAY_KEY_ID', cfg.RAZORPAY_KEY_ID);
-  setVal('env_RAZORPAY_KEY_SECRET', cfg.RAZORPAY_KEY_SECRET);
+  setVal('env_UPI_ID', cfg.UPI_ID || '9894174944@upi');
+  setVal('env_RAZORPAY_LIVE_KEY_ID', cfg.RAZORPAY_LIVE_KEY_ID);
+  setVal('env_RAZORPAY_LIVE_KEY_SECRET', cfg.RAZORPAY_LIVE_KEY_SECRET);
+  setVal('env_RAZORPAY_TEST_KEY_ID', cfg.RAZORPAY_TEST_KEY_ID || cfg.RAZORPAY_KEY_ID || 'rzp_test_TeE2LFCxmmioPq');
+  setVal('env_RAZORPAY_TEST_KEY_SECRET', cfg.RAZORPAY_TEST_KEY_SECRET || cfg.RAZORPAY_KEY_SECRET || 'bxk4gdsx48aBSjVSJd61IjLe');
   setVal('env_CONTACT_UNLOCK_PRICE', cfg.CONTACT_UNLOCK_PRICE !== undefined ? cfg.CONTACT_UNLOCK_PRICE : 30);
   setVal('env_FREE_CONTACT_LIMIT', cfg.FREE_CONTACT_LIMIT !== undefined ? cfg.FREE_CONTACT_LIMIT : 3);
+
+  // SMS & WhatsApp Gateway
+  setVal('env_SMS_GATEWAY_PROVIDER', cfg.SMS_GATEWAY_PROVIDER || 'fast2sms');
+  setVal('env_PHONE_OTP_ENABLED', cfg.PHONE_OTP_ENABLED !== undefined ? String(cfg.PHONE_OTP_ENABLED) : 'true');
+  setVal('env_FAST2SMS_API_KEY', cfg.FAST2SMS_API_KEY || '');
+  setVal('env_TWILIO_ACCOUNT_SID', cfg.TWILIO_ACCOUNT_SID || '');
+  setVal('env_TWILIO_AUTH_TOKEN', cfg.TWILIO_AUTH_TOKEN || '');
+  setVal('env_TWILIO_PHONE_NUMBER', cfg.TWILIO_PHONE_NUMBER || '');
+  setVal('env_WHATSAPP_API_URL', cfg.WHATSAPP_API_URL || '');
 }
 
 function toggleEnvEditorView(mode) {
@@ -1397,11 +1639,30 @@ async function saveEnvForm() {
     SOCIAL_TELEGRAM: document.getElementById('env_SOCIAL_TELEGRAM').value.trim(),
 
     // Monetization & Razorpay Gateway
+    RAZORPAY_MODE: (document.getElementById('env_RAZORPAY_MODE')?.value || 'test'),
     RAZORPAY_ACCOUNT_ID: (document.getElementById('env_RAZORPAY_ACCOUNT_ID')?.value || '').trim(),
-    RAZORPAY_KEY_ID: (document.getElementById('env_RAZORPAY_KEY_ID')?.value || '').trim(),
-    RAZORPAY_KEY_SECRET: (document.getElementById('env_RAZORPAY_KEY_SECRET')?.value || '').trim(),
+    UPI_ID: (document.getElementById('env_UPI_ID')?.value || '').trim(),
+    RAZORPAY_LIVE_KEY_ID: (document.getElementById('env_RAZORPAY_LIVE_KEY_ID')?.value || '').trim(),
+    RAZORPAY_LIVE_KEY_SECRET: (document.getElementById('env_RAZORPAY_LIVE_KEY_SECRET')?.value || '').trim(),
+    RAZORPAY_TEST_KEY_ID: (document.getElementById('env_RAZORPAY_TEST_KEY_ID')?.value || '').trim(),
+    RAZORPAY_TEST_KEY_SECRET: (document.getElementById('env_RAZORPAY_TEST_KEY_SECRET')?.value || '').trim(),
+    RAZORPAY_KEY_ID: (document.getElementById('env_RAZORPAY_MODE')?.value === 'live' 
+      ? (document.getElementById('env_RAZORPAY_LIVE_KEY_ID')?.value || '').trim() 
+      : (document.getElementById('env_RAZORPAY_TEST_KEY_ID')?.value || '').trim()),
+    RAZORPAY_KEY_SECRET: (document.getElementById('env_RAZORPAY_MODE')?.value === 'live' 
+      ? (document.getElementById('env_RAZORPAY_LIVE_KEY_SECRET')?.value || '').trim() 
+      : (document.getElementById('env_RAZORPAY_TEST_KEY_SECRET')?.value || '').trim()),
     CONTACT_UNLOCK_PRICE: parseInt(document.getElementById('env_CONTACT_UNLOCK_PRICE')?.value || '30', 10),
-    FREE_CONTACT_LIMIT: parseInt(document.getElementById('env_FREE_CONTACT_LIMIT')?.value || '3', 10)
+    FREE_CONTACT_LIMIT: parseInt(document.getElementById('env_FREE_CONTACT_LIMIT')?.value || '3', 10),
+
+    // SMS & WhatsApp Gateway
+    SMS_GATEWAY_PROVIDER: (document.getElementById('env_SMS_GATEWAY_PROVIDER')?.value || 'fast2sms'),
+    PHONE_OTP_ENABLED: (document.getElementById('env_PHONE_OTP_ENABLED')?.value === 'true'),
+    FAST2SMS_API_KEY: (document.getElementById('env_FAST2SMS_API_KEY')?.value || '').trim(),
+    TWILIO_ACCOUNT_SID: (document.getElementById('env_TWILIO_ACCOUNT_SID')?.value || '').trim(),
+    TWILIO_AUTH_TOKEN: (document.getElementById('env_TWILIO_AUTH_TOKEN')?.value || '').trim(),
+    TWILIO_PHONE_NUMBER: (document.getElementById('env_TWILIO_PHONE_NUMBER')?.value || '').trim(),
+    WHATSAPP_API_URL: (document.getElementById('env_WHATSAPP_API_URL')?.value || '').trim()
   };
 
   try {
@@ -1668,6 +1929,9 @@ function switchTab(tabId) {
   }
   if (tabId === 'user-activities') {
     loadActivitiesData();
+  }
+  if (tabId === 'live-users') {
+    loadLiveUsers();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2078,13 +2342,372 @@ async function loadActivitiesData() {
       AppState.activities = data.activities || [];
       AppState.activityStats = data.stats || {};
       AppState.activityUsers = data.users || [];
+      AppState.activityPosters = data.posters || [];
+      AppState.propertyViews = data.property_views || [];
+
       renderActivityStats(data.stats);
       populateActivityUserDropdown(data.users || []);
       filterActivitiesList();
+      renderPostersTable(AppState.activityPosters);
+      renderPropertyViewsTable(AppState.propertyViews);
     }
   } catch (err) {
     console.warn('Failed to load user activities:', err);
   }
+}
+
+function switchActSubTab(tabName) {
+  const tabs = ['activities', 'posters', 'propertyViews', 'chats'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('btnSubTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    const sec = document.getElementById('actSection' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) {
+      btn.className = (t === tabName) ? 'btn btn-primary act-subtab-btn' : 'btn btn-secondary act-subtab-btn';
+    }
+    if (sec) {
+      sec.style.display = (t === tabName) ? 'block' : 'none';
+    }
+  });
+
+  if (tabName === 'chats') {
+    loadAdminChats();
+  }
+}
+
+function renderPostersTable(posters) {
+  const tbody = document.getElementById('postersTableBody');
+  if (!tbody) return;
+
+  if (!posters || posters.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">
+          விளம்பரம் பதிவிட்ட விற்பனையாளர்கள் விவரம் கிடைக்கவில்லை.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = posters.map(p => {
+    const cleanPhone = (p.seller_phone || '').replace(/[^0-9]/g, '');
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:700; color:#fff; font-size:14px;">🏷️ ${escapeHtml(p.seller_name || 'Direct Owner')}</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">பதிவாளர் (Property Poster)</div>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#38bdf8; font-size:13.5px;">📞 ${escapeHtml(p.seller_phone || '-')}</div>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            ${cleanPhone ? `
+              <a href="tel:${cleanPhone}" class="btn btn-secondary" style="padding:2px 8px; font-size:11px;" title="Call">📞 Call</a>
+              <a href="https://wa.me/91${cleanPhone}" target="_blank" class="btn btn-emerald" style="padding:2px 8px; font-size:11px;" title="WhatsApp">💬 WhatsApp</a>
+            ` : ''}
+          </div>
+        </td>
+        <td>
+          <span class="badge badge-verified" style="font-size:13px; font-weight:800; padding:4px 10px;">
+            🏠 ${p.total_properties || 0} விளம்பரங்கள்
+          </span>
+        </td>
+        <td>
+          <span style="font-size:14px; font-weight:800; color:#38bdf8;">
+            👁️ ${p.total_views_received || 0} பார்வைகள்
+          </span>
+        </td>
+        <td>
+          <span style="font-size:13px; font-weight:800; color:#10b981;">
+            🔓 ${p.total_unlocks_received || 0} திறப்புகள்
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-primary" style="padding:6px 12px; font-size:11.5px;" onclick="openPosterAdsModal('${escapeHtml(p.seller_phone)}')">
+            📋 விளம்பரங்கள் & பார்வைகள்
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openPosterAdsModal(sellerPhone) {
+  const seller = (AppState.activityPosters || []).find(p => p.seller_phone === sellerPhone);
+  if (!seller) return;
+
+  const modal = document.getElementById('posterAdsModal');
+  const title = document.getElementById('posterAdsModalTitle');
+  const content = document.getElementById('posterAdsModalContent');
+
+  if (title) title.innerText = `📢 ${seller.seller_name} (${seller.seller_phone}) - விளம்பரங்கள்`;
+  
+  const props = seller.properties || [];
+  if (props.length === 0) {
+    content.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">விளம்பரங்கள் எதுவும் இல்லை.</p>`;
+  } else {
+    content.innerHTML = `
+      <div style="margin-bottom:16px; display:flex; gap:12px;">
+        <div style="background:rgba(59,130,246,0.15); padding:10px 14px; border-radius:8px; border:1px solid rgba(59,130,246,0.3);">
+          <div style="font-size:11px; color:#93c5fd;">மொத்த விளம்பரங்கள்</div>
+          <div style="font-size:16px; font-weight:800; color:#fff;">${props.length}</div>
+        </div>
+        <div style="background:rgba(16,185,129,0.15); padding:10px 14px; border-radius:8px; border:1px solid rgba(16,185,129,0.3);">
+          <div style="font-size:11px; color:#6ee7b7;">பெற்ற மொத்த பார்வைகள்</div>
+          <div style="font-size:16px; font-weight:800; color:#fff;">${seller.total_views_received || 0}</div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        ${props.map(p => `
+          <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <div style="font-weight:700; color:#fff; font-size:14px;">${getCategoryIcon(p.propertyType)} ${escapeHtml(p.title)}</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">விலை: ₹${p.price.toLocaleString('en-IN')} | வகை: ${p.propertyType}</div>
+              </div>
+              <div style="text-align:right;">
+                <span class="badge badge-verified" style="font-size:12px; font-weight:800;">👁️ ${p.views_count || 0} பார்வைகள்</span>
+                <div style="font-size:11px; color:#10b981; font-weight:700; margin-top:4px;">🔓 ${p.unlocks_count || 0} திறப்புகள்</div>
+              </div>
+            </div>
+            ${p.viewers && p.viewers.length > 0 ? `
+              <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
+                <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:6px;">பார்த்த வாடிக்கையாளர்கள் (Recent Viewers):</div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                  ${p.viewers.slice(0, 5).map(v => `
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#cbd5e1; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:6px;">
+                      <span>👤 ${escapeHtml(v.user_name)} (${escapeHtml(v.user_phone || 'எண் இல்லை')})</span>
+                      <span style="color:#64748b; font-size:11px;">${v.viewed_at ? v.viewed_at.substring(0, 16) : ''}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closePosterAdsModal() {
+  const modal = document.getElementById('posterAdsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function renderPropertyViewsTable(propViews) {
+  const tbody = document.getElementById('propertyViewsTableBody');
+  if (!tbody) return;
+
+  if (!propViews || propViews.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">
+          பார்வையாளர்கள் விவரம் எதுவும் கிடைக்கவில்லை.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = propViews.map(pv => {
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:700; color:#fff; font-size:13.5px;">🏡 ${escapeHtml(pv.property_title || 'சொத்து')}</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">ID: ${escapeHtml(pv.property_id)}</div>
+        </td>
+        <td>
+          <span class="badge badge-pending" style="font-size:11.5px;">${escapeHtml(pv.property_type || 'Land')}</span>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#fde68a; font-size:13px;">🏷️ ${escapeHtml(pv.seller_name || 'Direct Owner')}</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">📞 ${escapeHtml(pv.seller_phone || '-')}</div>
+        </td>
+        <td>
+          <span style="font-size:15px; font-weight:800; color:#38bdf8;">
+            👁️ ${pv.views_count || 0} பார்வைகள்
+          </span>
+        </td>
+        <td>
+          <span style="font-size:13px; font-weight:800; color:#10b981;">
+            🔓 ${(pv.viewers ? pv.viewers.length : 0)} பயனர்கள்
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-primary" style="padding:6px 12px; font-size:11.5px;" onclick="openPropertyViewersModal('${escapeHtml(pv.property_id)}')">
+            👥 பார்த்தவர்கள் பட்டியல் (${pv.views_count || 0})
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openPropertyViewersModal(propId) {
+  const prop = (AppState.propertyViews || []).find(p => p.property_id === propId);
+  if (!prop) return;
+
+  const modal = document.getElementById('propertyViewersModal');
+  const title = document.getElementById('propertyViewersModalTitle');
+  const content = document.getElementById('propertyViewersModalContent');
+
+  if (title) title.innerText = `👁️ "${prop.property_title}" - பார்த்தவர்கள் பட்டியல் (${prop.views_count || 0})`;
+
+  const viewers = prop.viewers || [];
+  if (viewers.length === 0) {
+    content.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">பார்த்தவர்கள் விவரம் எதுவும் பதிவு செய்யப்படவில்லை.</p>`;
+  } else {
+    content.innerHTML = `
+      <div style="margin-bottom:14px; font-size:12px; color:var(--text-muted);">
+        இந்த சொத்தை பார்வையிட்ட வாடிக்கையாளர்களின் பட்டியல் மற்றும் தொடர்பு எண்கள்:
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${viewers.map((v, i) => {
+          const cleanP = (v.user_phone || '').replace(/[^0-9]/g, '');
+          return `
+            <div style="background:rgba(15,23,42,0.7); border:1px solid var(--border-glass); border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-weight:700; color:#fff; font-size:13.5px;">${i + 1}. 👤 ${escapeHtml(v.user_name || 'Customer')}</div>
+                <div style="font-size:12px; color:#38bdf8; font-weight:600; margin-top:2px;">📞 ${escapeHtml(v.user_phone || 'எண் இல்லை')}</div>
+                ${v.user_email ? `<div style="font-size:11px; color:var(--text-muted);">✉️ ${escapeHtml(v.user_email)}</div>` : ''}
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px; color:#94a3b8;">📅 ${v.viewed_at ? escapeHtml(v.viewed_at) : '-'}</div>
+                <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:6px;">
+                  ${cleanP ? `
+                    <a href="tel:${cleanP}" class="btn btn-secondary" style="padding:2px 8px; font-size:11px;">📞</a>
+                    <a href="https://wa.me/91${cleanP}" target="_blank" class="btn btn-emerald" style="padding:2px 8px; font-size:11px;">💬</a>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closePropertyViewersModal() {
+  const modal = document.getElementById('propertyViewersModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadAdminChats() {
+  const tbody = document.getElementById('chatsTableBody');
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">சாட் உரையாடல்கள் ஏற்றப்படுகிறது...</td></tr>`;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/chat.php?action=admin_all`);
+    const data = await res.json();
+    if (data && data.success) {
+      renderAdminChatsTable(data.conversations || []);
+    }
+  } catch (err) {
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">சாட் தரவு ஏற்றுவதில் பிழை.</td></tr>`;
+    }
+  }
+}
+
+function renderAdminChatsTable(convs) {
+  const tbody = document.getElementById('chatsTableBody');
+  if (!tbody) return;
+
+  if (!convs || convs.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">
+          வாங்குபவர்-விற்பனையாளர் அரட்டை உரையாடல்கள் எதுவும் இல்லை.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = convs.map(c => {
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:700; color:#fff; font-size:13.5px;">🏡 ${escapeHtml(c.property_title || 'சொத்து')}</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">ID: ${escapeHtml(c.property_id)}</div>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#38bdf8; font-size:13px;">👤 ${escapeHtml(c.buyer_name || 'Buyer')}</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">📞 ${escapeHtml(c.buyer_phone || '-')}</div>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#fde68a; font-size:13px;">🏷️ ${escapeHtml(c.seller_name || 'Seller')}</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">📞 ${escapeHtml(c.seller_phone || '-')}</div>
+        </td>
+        <td style="max-width:240px;">
+          <div style="font-size:13px; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${escapeHtml(c.last_message || '-')}
+          </div>
+        </td>
+        <td style="font-size:11.5px; color:var(--text-muted); white-space:nowrap;">
+          ${escapeHtml((c.last_message_time || c.created_at || '-').substring(0, 16))}
+        </td>
+        <td>
+          <button class="btn btn-primary" style="padding:6px 12px; font-size:11.5px;" onclick="openAdminChatModal('${escapeHtml(c.id)}')">
+            💬 சாட் பார்க்க
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function openAdminChatModal(convId) {
+  const modal = document.getElementById('adminChatModal');
+  const container = document.getElementById('adminChatModalMessages');
+  if (container) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">செய்திகள் ஏற்றப்படுகிறது...</div>`;
+  }
+  if (modal) modal.style.display = 'flex';
+
+  try {
+    const res = await fetch(`${API_BASE}/chat.php?action=messages&conversation_id=${encodeURIComponent(convId)}`);
+    const data = await res.json();
+    if (data && data.success && container) {
+      const msgs = data.messages || [];
+      if (msgs.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">செய்திகள் எதுவும் இல்லை.</div>`;
+      } else {
+        container.innerHTML = msgs.map(m => {
+          const isBuyer = (m.sender_role === 'buyer');
+          return `
+            <div style="display:flex; flex-direction:column; align-items:${isBuyer ? 'flex-start' : 'flex-end'}; margin-bottom:10px;">
+              <div style="font-size:11px; color:#94a3b8; margin-bottom:2px;">
+                ${isBuyer ? '👤 வாங்குபவர்' : '🏷️ விற்பனையாளர்'} (${escapeHtml(m.sender_name || m.sender_phone)})
+              </div>
+              <div style="background:${isBuyer ? '#1e3a8a' : '#065f46'}; color:#fff; padding:8px 12px; border-radius:10px; max-width:80%; font-size:13.5px;">
+                ${escapeHtml(m.message || '')}
+              </div>
+              <div style="font-size:10px; color:#64748b; margin-top:2px;">
+                ${escapeHtml((m.created_at || '').substring(11, 16))}
+              </div>
+            </div>
+          `;
+        }).join('');
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (container) {
+      container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">பிழை: செய்திகளை ஏற்ற முடியவில்லை.</div>`;
+    }
+  }
+}
+
+function closeAdminChatModal() {
+  const modal = document.getElementById('adminChatModal');
+  if (modal) modal.style.display = 'none';
 }
 
 function renderActivityStats(stats) {
@@ -2225,6 +2848,9 @@ function renderActivitiesTable(list) {
     } else if (actType === 'property_post') {
       badgeClass = 'badge-sold';
       badgeText = '📝 புதிய விளம்பரம் பதிவு';
+    } else if (actType === 'chat_message') {
+      badgeClass = 'badge-pending';
+      badgeText = '💬 அரட்டை செய்தி';
     }
 
     return `
@@ -2265,4 +2891,233 @@ function renderActivitiesTable(list) {
       </tr>
     `;
   }).join('');
+}
+
+/* ==================== 12. LIVE ACTIVE USERS & DIRECT MESSAGING ==================== */
+
+async function loadLiveUsers(isBackground = false) {
+  try {
+    const res = await fetch(`${API_BASE}/users.php?action=list_live`);
+    const data = await res.json();
+    if (data && data.success) {
+      AppState.liveUsers = data.users || [];
+      const stats = data.stats || { active_now: 0, app_active: 0, web_active: 0, total_users: 0 };
+
+      // Update KPI Cards
+      const elLiveNow = document.getElementById('statLiveNow');
+      if (elLiveNow) elLiveNow.innerText = stats.active_now || 0;
+      const elApp = document.getElementById('statAppActive');
+      if (elApp) elApp.innerText = stats.app_active || 0;
+      const elWeb = document.getElementById('statWebActive');
+      if (elWeb) elWeb.innerText = stats.web_active || 0;
+      const elTotal = document.getElementById('statTotalUsers');
+      if (elTotal) elTotal.innerText = stats.total_users || 0;
+
+      // Update Sidebar Live Badge
+      const badge = document.getElementById('sidebarLiveCount');
+      if (badge) {
+        badge.innerText = `${stats.active_now || 0} Live`;
+      }
+
+      renderLiveUsersTable();
+    }
+  } catch (err) {
+    if (!isBackground) {
+      console.error('Error loading live users:', err);
+    }
+  }
+}
+
+function renderLiveUsersTable() {
+  const tbody = document.getElementById('liveUsersTableBody');
+  if (!tbody) return;
+
+  const searchInput = document.getElementById('liveUserSearchInput');
+  const statusFilter = document.getElementById('liveUserStatusFilter');
+  const platformFilter = document.getElementById('liveUserPlatformFilter');
+
+  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const status = statusFilter ? statusFilter.value : 'all';
+  const platform = platformFilter ? platformFilter.value : 'all';
+
+  let list = AppState.liveUsers || [];
+
+  // Filter by status
+  if (status !== 'all') {
+    list = list.filter(u => u.status === status);
+  }
+
+  // Filter by platform
+  if (platform === 'app') {
+    list = list.filter(u => (u.platform || '').toLowerCase().includes('app') || !(u.platform || '').toLowerCase().includes('web'));
+  } else if (platform === 'web') {
+    list = list.filter(u => (u.platform || '').toLowerCase().includes('web'));
+  }
+
+  // Filter by search query
+  if (query) {
+    list = list.filter(u => 
+      (u.user_name || '').toLowerCase().includes(query) ||
+      (u.user_phone || '').toLowerCase().includes(query) ||
+      (u.user_email || '').toLowerCase().includes(query) ||
+      (u.current_screen || '').toLowerCase().includes(query)
+    );
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding:40px; color:var(--text-muted);">
+          🔍 தற்போதைய வடிகட்டலுக்கு எந்த பயனரும் கிடைக்கவில்லை.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = list.map(u => {
+    const isOnline = u.status === 'online';
+    const isIdle = u.status === 'idle';
+
+    let statusBadge = '';
+    if (isOnline) {
+      statusBadge = `
+        <span class="badge badge-emerald" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; padding:4px 10px;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; box-shadow:0 0 6px #10b981;"></span>
+          🟢 நேரலையில் (Online)
+        </span>
+      `;
+    } else if (isIdle) {
+      statusBadge = `
+        <span class="badge" style="background:rgba(234,179,8,0.15); color:#fbbf24; border:1px solid rgba(234,179,8,0.3); display:inline-flex; align-items:center; gap:6px; font-weight:600; padding:4px 10px;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#fbbf24; display:inline-block;"></span>
+          🟡 சற்று முன் (Idle)
+        </span>
+      `;
+    } else {
+      statusBadge = `
+        <span class="badge" style="background:rgba(148,163,184,0.12); color:#94a3b8; border:1px solid rgba(148,163,184,0.25); font-size:11px; padding:3px 8px;">
+          ⚪ ஆஃப்லைன்
+        </span>
+      `;
+    }
+
+    const platformIcon = (u.platform || '').toLowerCase().includes('web') ? '💻 Web' : '📱 App';
+    const cleanPhone = (u.user_phone || '').replace(/[^0-9]/g, '');
+
+    // Time elapsed string in Tamil
+    const diffSec = u.last_active_diff || 0;
+    let timeText = 'இப்போது';
+    if (diffSec > 60) {
+      const mins = Math.floor(diffSec / 60);
+      timeText = mins < 60 ? `${mins} நிமிடம் முன்` : `${Math.floor(mins / 60)} மணி நேரம் முன்`;
+    }
+
+    return `
+      <tr>
+        <td>
+          ${statusBadge}
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${timeText}</div>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#fff; font-size:13.5px;">👤 ${escapeHtml(u.user_name || 'Customer')}</div>
+          ${u.user_phone ? `<div style="font-size:12px; color:#38bdf8; font-weight:600; margin-top:2px;">📞 ${escapeHtml(u.user_phone)}</div>` : '<div style="font-size:11.5px; color:var(--text-muted);">📱 Guest User</div>'}
+          ${u.user_email ? `<div style="font-size:11px; color:var(--text-muted);">✉️ ${escapeHtml(u.user_email)}</div>` : ''}
+          <span class="badge" style="background:rgba(255,255,255,0.06); font-size:10px; margin-top:3px;">${escapeHtml(u.role || 'buyer')}</span>
+        </td>
+        <td>
+          <span class="badge" style="background:${(u.platform || '').toLowerCase().includes('web') ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)'}; color:${(u.platform || '').toLowerCase().includes('web') ? '#fbbf24' : '#60a5fa'}; font-weight:700; padding:4px 8px;">
+            ${platformIcon} ${escapeHtml(u.platform || 'Android')}
+          </span>
+        </td>
+        <td>
+          <div style="font-weight:600; color:#e2e8f0; font-size:12.5px;">📍 ${escapeHtml(u.current_screen || 'Home')}</div>
+        </td>
+        <td style="font-size:12px; color:var(--text-muted);">
+          <div>📅 ${escapeHtml((u.last_active || '').substring(0, 10))}</div>
+          <div style="font-size:11px; color:#94a3b8;">⏰ ${escapeHtml((u.last_active || '').substring(11, 19))}</div>
+        </td>
+        <td style="text-align: right;">
+          <div style="display:inline-flex; gap:6px; justify-content:flex-end;">
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:11.5px; font-weight:700;" onclick="openAdminDirectMsgModal('${escapeHtml(u.user_id || '')}', '${escapeHtml(u.user_name || 'Customer')}', '${escapeHtml(u.user_phone || '')}')" title="பயனருக்கு நேரடி செய்தி அனுப்புக">
+              💬 செய்தி
+            </button>
+            ${cleanPhone ? `
+              <a href="tel:${cleanPhone}" class="btn btn-secondary" style="padding:5px 8px; font-size:11.5px;" title="நேரடி அழைப்பு">📞</a>
+              <a href="https://wa.me/91${cleanPhone}?text=${encodeURIComponent('வணக்கம் ' + (u.user_name || '') + ', தென்காசி கனவுகள் தளத்திலிருந்து தொடர்பு கொள்கிறோம்.')}" target="_blank" class="btn btn-emerald" style="padding:5px 8px; font-size:11.5px;" title="WhatsApp செய்தி">💬</a>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openAdminDirectMsgModal(userId, userName, userPhone) {
+  const modal = document.getElementById('adminDirectMsgModal');
+  if (!modal) return;
+
+  document.getElementById('adminMsgUserId').value = userId || '';
+  document.getElementById('adminMsgUserPhone').value = userPhone || '';
+  document.getElementById('adminMsgRecipientName').innerText = userName || 'Customer';
+  document.getElementById('adminMsgRecipientPhone').innerText = userPhone ? `📞 ${userPhone}` : '📱 Guest (In-App Message)';
+  document.getElementById('adminMsgText').value = '';
+
+  modal.classList.add('show');
+}
+
+function applyMsgTemplate(text) {
+  const textarea = document.getElementById('adminMsgText');
+  if (textarea) {
+    textarea.value = text;
+    textarea.focus();
+  }
+}
+
+async function submitAdminDirectMsg(e) {
+  if (e) e.preventDefault();
+  const userId = document.getElementById('adminMsgUserId').value.trim();
+  const userPhone = document.getElementById('adminMsgUserPhone').value.trim();
+  const userName = document.getElementById('adminMsgRecipientName').innerText.trim();
+  const text = document.getElementById('adminMsgText').value.trim();
+  const btn = document.getElementById('btnSendAdminMsg');
+
+  if (!text) {
+    showToast('தயவுசெய்து செய்தியை உள்ளிடவும்', 'error');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'அனுப்பப்படுகிறது...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/users.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send_admin_message',
+        user_id: userId,
+        user_phone: userPhone,
+        user_name: userName,
+        message: text,
+        admin_name: (AppState.user && AppState.user.name) ? AppState.user.name : 'Super Admin'
+      })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      showToast('🎉 செய்தி வெற்றிகரமாக அனுப்பப்பட்டது!', 'success');
+      closeModal('adminDirectMsgModal');
+    } else {
+      showToast(data.message || 'செய்தி அனுப்புவதில் பிழை', 'error');
+    }
+  } catch (err) {
+    showToast('API இணைப்பு தோல்வி', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '🚀 செய்தி அனுப்பு (Send Message)';
+    }
+  }
 }

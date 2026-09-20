@@ -382,24 +382,29 @@ function buildCardHtml(p, isFeaturedCard = false) {
   const priceFormatted = formatPrice(p.price, p.propertyType === 'Rental');
   const areaFormatted = getAreaDisplay(p);
   const locationShort = (p.location || 'TENKASI').split(',')[0].toUpperCase();
+  const isPremium = p.isPremium === true || p.isPremium === 1 || p.isPremium === '1' || p.isPremium === 'true';
 
   return `
-    <div class="olx-property-card" onclick="openPropertyDetail('${p.id}')">
+    <div class="olx-property-card ${isPremium ? 'premium-card' : ''}" onclick="openPropertyDetail('${p.id}')">
       <div class="card-top-thumbnail">
         <img src="${getPropertyImage(p)}" alt="${p.title}" loading="lazy">
         ${(p.isFeatured || isFeaturedCard) ? `<div class="badge-hot-tag">★ ${t('sec_hot')}</div>` : ''}
+        ${isPremium
+          ? `<div class="badge-premium-tag">💎 ${state.lang === 'ta' ? 'பிரீமியம்' : 'PREMIUM'}</div>`
+          : `<div class="badge-free-tag">🟢 ${state.lang === 'ta' ? 'இலவச தொடர்பு' : 'FREE'}</div>`
+        }
         <button class="card-favorite-icon ${isFav ? 'active' : ''}" onclick="toggleFavorite(event, '${p.id}')" title="Save Favorite">♥</button>
         ${p.isVerified ? `<div class="badge-verified-tag">✓ ${t('verified_badge')}</div>` : ''}
       </div>
       <div class="card-content-wrap">
         <div>
-          <div class="card-price-text">${priceFormatted}</div>
+          <div class="card-price-text ${isPremium ? 'premium-price' : ''}">${priceFormatted}</div>
           <div class="card-specs-line">${areaFormatted} ${p.facing ? '• ' + p.facing + ' Facing' : ''}</div>
           <div class="card-title-text" title="${p.title}">${p.title}</div>
         </div>
         <div class="card-footer-info">
           <span>📍 ${locationShort}</span>
-          <span>100% VERIFIED</span>
+          <span>${isPremium ? '⭐ PREMIUM' : '100% VERIFIED'}</span>
         </div>
       </div>
     </div>
@@ -952,7 +957,7 @@ function openGoogleLoginModal(reason = '') {
         </div>
 
         <!-- Official Google Sign In Button -->
-        <button onclick="handleGoogleSignInPrompt()" style="width: 100%; background: #FFFFFF; border: 1.5px solid #CBD5E1; padding: 12px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); transition: all 0.2s;">
+        <button onclick="triggerFirebaseGoogleSignIn()" style="width: 100%; background: #FFFFFF; border: 1.5px solid #CBD5E1; padding: 12px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); transition: all 0.2s;">
           <svg style="width: 22px; height: 22px;" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -963,19 +968,65 @@ function openGoogleLoginModal(reason = '') {
         </button>
 
         <div style="margin-top: 14px; text-align: center;">
-          <button onclick="handleGoogleSignInWeb('tenkasi.buyer@gmail.com', 'Tenkasi Buyer')" style="background: transparent; border: none; color: #0284C7; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline;">
-            ⚡ 1-Click Demo Google Sign-In
+          <button onclick="handleGoogleSignInPrompt()" style="background: transparent; border: none; color: #0284C7; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline;">
+            ⚡ அல்லது Gmail முகவரி உள்ளிட்டு உள்நுழைக
           </button>
         </div>
 
         <div style="font-size: 11px; color: #94A3B8; margin-top: 16px; line-height: 1.4;">
-          பாதுகாப்பான Google உள்நுழைவு. முதல் 3 தொடர்புகள் இலவசம்.
+          பாதுகாப்பான Firebase & Google உள்நுழைவு. முதல் 3 தொடர்புகள் இலவசம்.
         </div>
       </div>
     `;
   }
 
   modal.classList.add('active');
+}
+
+// --- Firebase Web Configuration ---
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDubzcYrOL3LKI7Umh103KBfG4sErZ8T3c",
+  authDomain: "tenkasi-dreams.firebaseapp.com",
+  projectId: "tenkasi-dreams",
+  storageBucket: "tenkasi-dreams.firebasestorage.app",
+  messagingSenderId: "472022657503",
+  appId: "1:472022657503:web:4f16967efafb8c19a63c6a",
+  measurementId: "G-MDTX84WDD7"
+};
+
+// Initialize Firebase
+try {
+  if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+  }
+} catch (e) {
+  console.warn('Firebase init error:', e);
+}
+
+function triggerFirebaseGoogleSignIn() {
+  if (typeof firebase !== 'undefined' && firebase.auth) {
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+
+    auth.signInWithPopup(provider)
+      .then((result) => {
+        const user = result.user;
+        console.log('Firebase Google Sign-In Success:', user.displayName, user.email);
+        handleGoogleSignInWeb(user.email, user.displayName, user.phoneNumber, user.photoURL);
+      })
+      .catch((error) => {
+        console.warn('Firebase popup sign-in notice:', error.code, error.message);
+        if (error.code === 'auth/popup-closed-by-user') {
+          return;
+        }
+        // If domain not authorized yet or popup blocked, fall back gracefully to prompt
+        handleGoogleSignInPrompt();
+      });
+  } else {
+    handleGoogleSignInPrompt();
+  }
 }
 
 function handleGoogleSignInPrompt() {
@@ -990,21 +1041,48 @@ function handleGoogleSignInPrompt() {
   handleGoogleSignInWeb(cleanEmail, capitalizedName);
 }
 
-function handleGoogleSignInWeb(email, name) {
+function syncUserToFirestoreWeb(user) {
+  if (typeof firebase !== 'undefined' && firebase.firestore) {
+    try {
+      const db = firebase.firestore();
+      db.collection('users').doc(user.email).set({
+        email: user.email,
+        name: user.name,
+        phone: user.phone || '',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }).catch(err => console.log('Firestore sync note:', err));
+    } catch (_) {}
+  }
+}
+
+function handleSignOutWeb() {
+  if (typeof firebase !== 'undefined' && firebase.auth) {
+    try { firebase.auth().signOut(); } catch (_) {}
+  }
+  localStorage.removeItem('tenkasi_user');
+  state.user = null;
+  updateUserAuthUI();
+  closeModal('googleLoginModal');
+  alert('நீங்கள் கணக்கிலிருந்து வெளியேறிவிட்டீர்கள் (Signed out successfully).');
+}
+
+function handleGoogleSignInWeb(email, name, phone, photoUrl) {
   const cleanEmail = email || 'tenkasidreams@gmail.com';
   const cleanName = name || 'Tenkasi User';
 
   const existingUser = JSON.parse(localStorage.getItem('tenkasi_user') || 'null');
-  const existingPhone = (existingUser && existingUser.phone) ? existingUser.phone : '';
+  const existingPhone = phone || ((existingUser && existingUser.phone) ? existingUser.phone : '');
 
   state.user = {
     isLoggedIn: true,
     email: cleanEmail,
     name: cleanName,
     phone: existingPhone,
-    city: existingUser?.city || 'Tenkasi'
+    city: existingUser?.city || 'Tenkasi',
+    photoUrl: photoUrl || ''
   };
   localStorage.setItem('tenkasi_user', JSON.stringify(state.user));
+  syncUserToFirestoreWeb(state.user);
   updateUserAuthUI();
   closeModal('googleLoginModal');
 
@@ -1107,7 +1185,8 @@ async function fetchPaymentConfig() {
 }
 
 function renderContactSection(prop, phone, cleanPhone, waMsg) {
-  const isUnlocked = state.unlockedProperties.includes(prop.id);
+  const isPremium = prop.isPremium === true || prop.isPremium === 1 || prop.isPremium === '1' || prop.isPremium === 'true';
+  const isUnlocked = !isPremium || state.unlockedProperties.includes(prop.id);
   const freeLimit = state.paymentConfig.freeLimit !== undefined ? state.paymentConfig.freeLimit : 3;
   const freeRemaining = Math.max(0, freeLimit - state.freeContactsUsed);
   const isOffer = !!state.paymentConfig.offerActive;
@@ -1116,13 +1195,13 @@ function renderContactSection(prop, phone, cleanPhone, waMsg) {
   const effectiveCount = state.paymentConfig.effectiveContactsCount || 1;
   const offerBanner = state.paymentConfig.offerBannerText || 'சிறப்பு தள்ளுபடி சலுகை';
 
-  // Case 1: Property is already unlocked (Free or Paid)
-  if (isUnlocked) {
+  // Case 1: Free property (Not premium) -> Direct Free access for everyone!
+  if (!isPremium) {
     return `
       <div style="background: #ECFDF5; padding: 14px; border-radius: 12px; border: 1.5px solid #10B981; margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <div style="font-size: 12px; font-weight: 700; color: #065F46;">உரிமையாளர் விவரம்</div>
-          <span style="background: #10B981; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">✓ திறக்கப்பட்டது (Unlocked)</span>
+          <div style="font-size: 12px; font-weight: 700; color: #065F46;">🟢 நேரடி தொடர்பு (இலவச விளம்பரம் - Free Ad)</div>
+          <span style="background: #10B981; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">✓ 100% இலவசம் (Free)</span>
         </div>
         <div style="font-size: 15px; font-weight: 800; color: #0F172A;">${prop.agent?.name || 'Direct Owner'}</div>
         <div style="font-size: 15px; font-weight: 800; color: #059669; margin-top: 4px;">📞 ${phone}</div>
@@ -1135,24 +1214,43 @@ function renderContactSection(prop, phone, cleanPhone, waMsg) {
     `;
   }
 
+  // Case 2: Premium Property is already unlocked
+  if (isUnlocked) {
+    return `
+      <div style="background: #FFFBEB; padding: 14px; border-radius: 12px; border: 1.5px solid #D97706; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="font-size: 12px; font-weight: 700; color: #92400E;">💎 பிரீமியம் சொத்து தொடர்பு எண்</div>
+          <span style="background: #D97706; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">✓ திறக்கப்பட்டது (Unlocked)</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 800; color: #0F172A;">${prop.agent?.name || 'Direct Owner'}</div>
+        <div style="font-size: 15px; font-weight: 800; color: #B45309; margin-top: 4px;">📞 ${phone}</div>
+      </div>
+
+      <div class="detail-actions-row">
+        <a href="tel:${cleanPhone}" class="btn-call">📞 ${t('call_now')}</a>
+        <a href="https://wa.me/${cleanPhone}?text=${waMsg}" target="_blank" class="btn-whatsapp">💬 ${t('whatsapp')}</a>
+      </div>
+    `;
+  }
+
   // Masked phone format: +91 98••••••••
   const maskedPhone = phone && phone.length > 6 ? phone.substring(0, 7) + '••••••••' : '+91 98••••••••';
 
-  // Case 2: User still has Free Contact Views remaining
+  // Case 3: Premium Property - User still has Free Contact Views remaining
   if (freeRemaining > 0 && freeLimit > 0) {
     return `
-      <div style="background: linear-gradient(135deg, #ECFDF5 0%, #EFF6FF 100%); border: 1.5px solid #10B981; border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+      <div style="background: linear-gradient(135deg, #FFFBEB 0%, #EFF6FF 100%); border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px; margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <div style="font-size: 12px; font-weight: 700; color: #065F46;">உரிமையாளர் விவரம்</div>
-          <span style="background: #10B981; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px;">🎁 இலவச பார்வை: ${freeRemaining} / ${freeLimit} மீதம்</span>
+          <div style="font-size: 12px; font-weight: 700; color: #92400E;">💎 பிரீமியம் விளம்பர தொடர்பு</div>
+          <span style="background: #2563EB; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px;">🎁 இலவச பார்வை: ${freeRemaining} / ${freeLimit} மீதம்</span>
         </div>
         <div style="font-size: 14px; font-weight: 800; color: #0F172A;">${prop.agent?.name || 'Direct Owner'}</div>
         <div style="font-size: 13px; font-weight: 700; color: #64748B; margin-top: 4px;">📞 ${maskedPhone}</div>
         <div style="font-size: 12px; color: #4B5563; margin-top: 8px; line-height: 1.4;">
-          புதிய வாடிக்கையாளர்களுக்கு முதல் ${freeLimit} தொடர்புகள் முற்றிலும் இலவசம்! நேரடி செல்போன் மற்றும் WhatsApp விவரங்களை உடனே பார்க்க கீழே அழுத்தவும்.
+          பிரீமியம் சொத்துக்களுக்கு உங்கள் இலவச தொடர்புகளில் இருந்து 1 குறைத்து உடனடியாக திறக்கலாம்.
         </div>
-        <button onclick="unlockContactFree('${prop.id}')" style="margin-top: 10px; width: 100%; background: #10B981; color: #fff; border: none; padding: 11px; border-radius: 8px; font-weight: 800; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 3px 8px rgba(16,185,129,0.25);">
-          🔓 இலவசமாக தொடர்பு எண்ணை பார்க்கவும் (${freeRemaining} மீதம்)
+        <button onclick="unlockContactFree('${prop.id}')" style="margin-top: 10px; width: 100%; background: #2563EB; color: #fff; border: none; padding: 11px; border-radius: 8px; font-weight: 800; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 3px 8px rgba(37,99,235,0.25);">
+          🔓 இலவசமாக தொடர்பு எண்ணை திறக்கவும் (${freeRemaining} மீதம்)
         </button>
       </div>
 
@@ -1163,37 +1261,33 @@ function renderContactSection(prop, phone, cleanPhone, waMsg) {
     `;
   }
 
-  // Case 3: Free Views Reached! Show Dynamic Paywall (Regular or Offer Price)
+  // Case 4: Free Views Reached! Show Paywall
   return `
-    <div style="background: linear-gradient(135deg, ${isOffer ? '#ECFDF5 0%, #FEF3C7 100%' : '#FFFBEB 0%, #FEF2F2 100%'}); border: 2px solid ${isOffer ? '#10B981' : '#F59E0B'}; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(245,158,11,0.15);">
+    <div style="background: linear-gradient(135deg, ${isOffer ? '#FFFBEB 0%, #FEF3C7 100%' : '#FFFBEB 0%, #FEF2F2 100%'}); border: 2px solid #D97706; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(217,119,6,0.15);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <div style="font-size: 12px; font-weight: 800; color: ${isOffer ? '#065F46' : '#B45309'};">
-          ${isOffer ? '🎉 ' + offerBanner : (freeLimit > 0 ? `🔒 இலவச ${freeLimit} தொடர்புகள் முடிந்துவிட்டது` : '🔒 உரிமையாளர் தொடர்பு எண்')}
+        <div style="font-size: 12px; font-weight: 800; color: #92400E;">
+          💎 பிரீமியம் விளம்பரம் - ${isOffer ? '🎉 ' + offerBanner : (freeLimit > 0 ? `🔒 3 இலவச பார்வைகள் முடிந்தது` : '🔒 உரிமையாளர் தொடர்பு எண்')}
         </div>
-        <span style="background: ${isOffer ? '#10B981' : '#DC2626'}; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">
+        <span style="background: #D97706; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">
           ${isOffer ? `ஆஃபர்: ₹${effectivePrice}` : `₹${effectivePrice} மட்டும்`}
         </span>
       </div>
       <div style="font-size: 14px; font-weight: 800; color: #0F172A;">${prop.agent?.name || 'Direct Owner'}</div>
       <div style="font-size: 13px; font-weight: 700; color: #94A3B8; margin-top: 4px;">📞 ${maskedPhone}</div>
       <div style="font-size: 12.5px; color: #374151; margin-top: 8px; line-height: 1.5;">
-        ${isOffer ? `
-          சிறப்பு தள்ளுபடி சலுகை: வழக்கமான கட்டணம் <del style="color:#94A3B8;">₹${standardPrice}</del> பதிலாக வெறும் <b>₹${effectivePrice}</b> செலுத்தி இந்த சொத்தின் உரிமையாளர் நேரடி எண்ணை உடனே பெறலாம்!
-        ` : `
-          இந்த நில உரிமையாளரின் நேரடி மொபைல் எண் மற்றும் WhatsApp விவரங்களை உடனடியாக பார்க்க <b>₹${effectivePrice}</b> செலுத்தவும் (${effectiveCount} தொடர்பு எண்${effectiveCount > 1 ? 'கள்' : ''} திறக்கப்படும்).
-        `}
+        இந்த பிரீமியம் நில உரிமையாளரின் நேரடி மொபைல் எண் மற்றும் WhatsApp விவரங்களை உடனடியாக திறக்க <b>₹${effectivePrice}</b> செலுத்தவும்.
       </div>
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: #059669; font-weight: 700;">
         <span>⚡ UPI / GPay</span> • <span>PhonePe</span> • <span>Paytm</span> • <span>Cards</span>
       </div>
-      <button onclick="promptContactUnlockPay('${prop.id}')" style="margin-top: 12px; width: 100%; background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(2,132,199,0.3);">
+      <button onclick="promptContactUnlockPay('${prop.id}')" style="margin-top: 12px; width: 100%; background: linear-gradient(135deg, #D97706 0%, #B45309 100%); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(217,119,6,0.3);">
         💳 ₹${effectivePrice} செலுத்தி தொடர்பு எண்ணை திறக்கவும் (${isOffer ? 'ஆஃபர் விலை' : 'Razorpay'})
       </button>
     </div>
 
     <div class="detail-actions-row">
       <button onclick="promptContactUnlockPay('${prop.id}')" class="btn-call" style="border:none; cursor:pointer; background: #64748B;">🔒 எண் பூட்டப்பட்டுள்ளது</button>
-      <button onclick="promptContactUnlockPay('${prop.id}')" class="btn-whatsapp" style="border:none; cursor:pointer; background: #0284C7;">💳 ₹${effectivePrice} செலுத்துக</button>
+      <button onclick="promptContactUnlockPay('${prop.id}')" class="btn-whatsapp" style="border:none; cursor:pointer; background: #D97706;">💳 ₹${effectivePrice} செலுத்துக</button>
     </div>
   `;
 }
@@ -1594,5 +1688,96 @@ async function doUnlockContactFree(propId) {
   const left = Math.max(0, freeLimit - state.freeContactsUsed);
   alert(`✅ இலவச தொடர்பு பார்வை திறக்கப்பட்டது!\n\nவணக்கம் ${state.user.name},\n"${prop.title}" சொத்து உரிமையாளரின் தொடர்பு எண் இப்போது திறக்கப்பட்டுள்ளது.\n\nஉங்களுக்கு இன்னும் ${left} இலவச தொடர்புகள் மீதம் உள்ளன.`);
 }
+
+// ==========================================================
+// Live Web User Heartbeat & Super Admin Direct Messaging
+// ==========================================================
+function initWebHeartbeat() {
+  let guestId = localStorage.getItem('tenkasi_web_guest_id');
+  if (!guestId) {
+    guestId = 'web_' + Math.random().toString(36).substring(2, 10) + Date.now();
+    localStorage.setItem('tenkasi_web_guest_id', guestId);
+  }
+
+  async function sendHeartbeat() {
+    try {
+      const user = state.user || {};
+      const res = await fetch('api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'heartbeat',
+          user_id: user.id || guestId,
+          user_name: user.name || 'Web Visitor',
+          user_phone: user.phone || '',
+          user_email: user.email || '',
+          platform: 'Web Browser (' + (navigator.userAgent.includes('Mobile') ? 'Mobile Web' : 'Desktop Web') + ')',
+          current_screen: document.title || 'Home',
+          role: user.role || 'buyer'
+        })
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.unread_admin_messages) && data.unread_admin_messages.length > 0) {
+        for (const msg of data.unread_admin_messages) {
+          showAdminMessageToast(msg);
+          // Mark as read
+          fetch('api/users.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark_read', message_id: msg.id })
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Send initial heartbeat and then every 30s
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 30000);
+}
+
+function showAdminMessageToast(msg) {
+  const existing = document.getElementById('adminWebMsgToast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'adminWebMsgToast';
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    max-width: 360px;
+    background: #0f172a;
+    border: 2px solid #3b82f6;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border-radius: 14px;
+    padding: 16px;
+    z-index: 99999;
+    color: #fff;
+    font-family: inherit;
+    animation: slideUp 0.3s ease;
+  `;
+  toast.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span style="font-weight:700; color:#60a5fa; font-size:13px; display:flex; align-items:center; gap:6px;">
+        💬 ${escapeHtml(msg.admin_name || 'Super Admin')}
+      </span>
+      <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:#94a3b8; font-size:16px; cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:13.5px; line-height:1.5; color:#e2e8f0; margin-bottom:12px;">
+      ${escapeHtml(msg.message || '')}
+    </div>
+    <div style="text-align:right;">
+      <button onclick="this.parentElement.parentElement.remove()" class="btn-primary" style="padding:4px 12px; font-size:12px; border-radius:6px; cursor:pointer;">
+        சரி (OK)
+      </button>
+    </div>
+  `;
+  document.body.appendChild(toast);
+}
+
+// Start heartbeat
+initWebHeartbeat();
+
 
 

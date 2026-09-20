@@ -14,6 +14,7 @@ import '../../core/widgets/animated_favorite_btn.dart';
 import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';
 import '../../state/app_state_providers.dart';
+import '../auth/login_screen.dart';
 import '../chat/conversation_screen.dart';
 import 'agent_profile_screen.dart';
 
@@ -807,102 +808,8 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                       const Divider(height: 1, color: AppColors.border),
                       const SizedBox(height: 20),
 
-                      // 7. Agent / Owner Card
-                      Text('Listed By', style: AppTextStyles.h4),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border, width: 1),
-                          boxShadow: AppColors.cardShadow,
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 52,
-                                  height: 52,
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [AppColors.primary, AppColors.primaryMedium],
-                                    ),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      property.agent.name.isNotEmpty ? property.agent.name[0] : 'A',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              property.agent.name,
-                                              style: AppTextStyles.h4.copyWith(fontSize: 16),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (property.agent.isVerified) ...[
-                                            const SizedBox(width: 4),
-                                            const Icon(Icons.verified_rounded, size: 16, color: AppColors.primary),
-                                          ],
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        property.agent.agencyName,
-                                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.star_rounded, size: 15, color: AppColors.accentGold),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            '${property.agent.rating} (${property.agent.reviewsCount} reviews)',
-                                            style: AppTextStyles.labelSmall.copyWith(fontWeight: FontWeight.w700),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => AgentProfileScreen(agent: property.agent),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    minimumSize: Size.zero,
-                                    side: const BorderSide(color: AppColors.primary, width: 1.2),
-                                  ),
-                                  child: const Text('Profile', style: TextStyle(fontSize: 12)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      // 7. Agent / Owner & Contact Unlock Card
+                      _buildOwnerContactCard(context, property),
                     ],
                   ),
                 ),
@@ -941,7 +848,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.phone_rounded, color: AppColors.primary, size: 20),
-                      onPressed: () => _handleCallAgent(context, property),
+                      onPressed: () => _handleContactAction(context, property, 'Call'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -956,14 +863,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.chat_outlined, color: Color(0xFF25D366), size: 20),
-                      onPressed: () async {
-                        final cleanPhone = property.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
-                        final text = Uri.encodeComponent('Hi ${property.agent.name}, I am interested in "${property.title}" listed on Tenkasi Dreams Land.');
-                        final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
-                      },
+                      onPressed: () => _handleContactAction(context, property, 'WhatsApp'),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -972,7 +872,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                     child: SizedBox(
                       height: 48,
                       child: ElevatedButton.icon(
-                        onPressed: () => _handleChatAgent(context, property),
+                        onPressed: () => _handleChatAction(context, property),
                         icon: const Icon(Icons.forum_outlined, size: 18),
                         label: const Text('Chat with Seller'),
                         style: ElevatedButton.styleFrom(
@@ -1566,87 +1466,465 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
     );
   }
 
-  void _handleCallAgent(BuildContext context, Property property) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
+  Widget _buildOwnerContactCard(BuildContext context, Property property) {
+    final storage = ref.watch(localStorageServiceProvider);
+    final isPremium = property.isPremium;
+    final isUnlocked = !isPremium || storage.getUnlockedPropertyIds().contains(property.id);
+    final freeUsed = storage.getFreeContactsUsed();
+    final freeRemaining = (3 - freeUsed).clamp(0, 3);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.phone_in_talk_rounded, color: AppColors.primary),
-            const SizedBox(width: 8),
-            const Text('Call Agent'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Contact ${property.agent.name} regarding "${property.title}"?'),
-            const SizedBox(height: 12),
+            Text('Listed By & Contact', style: AppTextStyles.h4),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(10),
+                color: isPremium ? const Color(0xFFFFFBEB) : const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isPremium ? const Color(0xFFFDE68A) : const Color(0xFFA7F3D0),
+                ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.phone_iphone_rounded, size: 18, color: AppColors.primary),
-                  const SizedBox(width: 8),
+                  Icon(
+                    isPremium ? Icons.workspace_premium_rounded : Icons.lock_open_rounded,
+                    size: 13,
+                    color: isPremium ? const Color(0xFFD97706) : const Color(0xFF059669),
+                  ),
+                  const SizedBox(width: 4),
                   Text(
-                    property.agent.phone,
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryDark),
+                    isPremium ? 'பிரீமியம் விளம்பரம்' : 'இலவச தொடர்பு',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isPremium ? const Color(0xFFD97706) : const Color(0xFF059669),
+                    ),
                   ),
                 ],
               ),
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isPremium
+                ? (isUnlocked ? const Color(0xFFFFFDF5) : AppColors.surface)
+                : const Color(0xFFECFDF5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPremium
+                  ? (isUnlocked ? const Color(0xFFD97706) : const Color(0xFFF59E0B).withValues(alpha: 0.5))
+                  : const Color(0xFF10B981),
+              width: 1.5,
+            ),
+            boxShadow: AppColors.cardShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isPremium
+                            ? [const Color(0xFFF59E0B), const Color(0xFFD97706)]
+                            : [const Color(0xFF10B981), const Color(0xFF059669)],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        property.agent.name.isNotEmpty ? property.agent.name[0] : 'A',
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                property.agent.name,
+                                style: AppTextStyles.h4.copyWith(fontSize: 16),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (property.agent.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.verified_rounded, size: 16, color: AppColors.primary),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          property.agent.agencyName,
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => AgentProfileScreen(agent: property.agent)),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size.zero,
+                      side: const BorderSide(color: AppColors.primary, width: 1.2),
+                    ),
+                    child: const Text('Profile', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 14),
+
+              if (isUnlocked) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: isPremium ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isPremium ? 'பிரீமியம் தொடர்பு எண்:' : 'உரிமையாளர் தொடர்பு எண்:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isPremium ? const Color(0xFF92400E) : const Color(0xFF065F46),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isPremium ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isPremium ? '✓ பிரீமியம் திறக்கப்பட்டது' : '✓ இலவச தொடர்பு',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: (isPremium ? const Color(0xFFD97706) : const Color(0xFF10B981)).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '📞 ${property.agent.phone}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.phone_rounded, color: AppColors.primary),
+                            onPressed: () => _launchCall(property.agent.phone),
+                            tooltip: 'அழைக்க (Call)',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chat_outlined, color: Color(0xFF25D366)),
+                            onPressed: () => _launchWhatsApp(property.agent.phone, property.title, property.agent.name),
+                            tooltip: 'WhatsApp',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (freeRemaining > 0) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'பிரீமியம் தொடர்பு:',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '🎁 இலவச பார்வை: $freeRemaining / 3 மீதம்',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '📞 +91 98••••••••',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleContactAction(context, property, 'View'),
+                          icon: const Icon(Icons.lock_open_rounded, size: 16),
+                          label: const Text('இலவசமாக தொடர்பு காண்க (Unlock Contact)'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'பிரீமியம் தொடர்பு எண்:',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD97706),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              '3 இலவச பார்வைகள் முடிந்தது',
+                              style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '📞 +91 98••••••••',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleContactAction(context, property, 'View'),
+                          icon: const Icon(Icons.payment_rounded, size: 16),
+                          label: const Text('₹10 செலுத்தி திறக்க (Special Offer)'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD97706),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _handleContactAction(BuildContext context, Property property, String method) {
+    final user = ref.read(userProfileProvider);
+    if (!user.isLoggedIn) {
+      _showLoginPrompt(context, property, method);
+      return;
+    }
+
+    // If Super Admin set this property as FREE (not premium), allow direct contact without paywall
+    if (!property.isPremium) {
+      _performContactAction(property, method);
+      return;
+    }
+
+    final storage = ref.read(localStorageServiceProvider);
+    final isUnlocked = storage.getUnlockedPropertyIds().contains(property.id);
+
+    if (isUnlocked) {
+      _performContactAction(property, method);
+      return;
+    }
+
+    final freeUsed = storage.getFreeContactsUsed();
+    final freeRemaining = (3 - freeUsed).clamp(0, 3);
+
+    if (freeRemaining > 0) {
+      _showFreeUnlockDialog(context, property, method, freeRemaining);
+    } else {
+      _showPaywallDialog(context, property, method);
+    }
+  }
+
+  void _showLoginPrompt(BuildContext context, Property property, String method) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.primary),
+            const SizedBox(height: 12),
+            const Text(
+              'உள்நுழைவு கட்டாயம் (Login Required)',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'உரிமையாளர் தொடர்பு எண்ணைப் பார்க்க அல்லது தொடர்பு கொள்ள, முதலில் Google மூலம் உள்நுழையவும்.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Color(0xFF475569), height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LoginScreen(
+                        onLoginSuccess: () {
+                          _handleContactAction(context, property, method);
+                        },
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.login_rounded, size: 20),
+                label: const Text('Google மூலம் உள்நுழைக', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFreeUnlockDialog(BuildContext context, Property property, String method, int freeRemaining) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.card_giftcard_rounded, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('இலவச தொடர்பு பார்வை'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('உங்களுக்கு 3 இலவச தொடர்புகளில் இன்னும் $freeRemaining மீதம் உள்ளது.'),
+            const SizedBox(height: 10),
+            Text(
+              'இந்த சொத்தின் ("${property.title}") உரிமையாளர் (${property.agent.name}) தொடர்பு விவரங்களை இப்போது திறக்க விரும்புகிறீர்களா?',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              _logContactActivity(property, 'WhatsApp');
-              final cleanPhone = property.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
-              final text = Uri.encodeComponent('Hi ${property.agent.name}, I am interested in "${property.title}" listed on Tenkasi Dreams Land.');
-              final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            icon: const Icon(Icons.chat_outlined, size: 16, color: Color(0xFF25D366)),
-            label: const Text('WhatsApp'),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF25D366)),
-            ),
+            child: const Text('ரத்து'),
           ),
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
-              _logContactActivity(property, 'Phone Call');
-              final clean = property.agent.phone.replaceAll(RegExp(r'[^0-9+]'), '');
-              final telUri = Uri(scheme: 'tel', path: clean);
-              if (await canLaunchUrl(telUri)) {
-                await launchUrl(telUri);
-              } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Dialing ${property.agent.phone}...'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                }
-              }
+              final storage = ref.read(localStorageServiceProvider);
+              await storage.incrementFreeContactsUsed();
+              await storage.addUnlockedProperty(property.id);
+              await _logContactActivity(property, 'Free Contact Unlock ($method)');
+              if (!mounted) return;
+              setState(() {});
+              _performContactAction(property, method);
             },
-            icon: const Icon(Icons.call_rounded, size: 16),
-            label: const Text('Call Now'),
+            icon: const Icon(Icons.lock_open_rounded, size: 16),
+            label: const Text('திறக்க (Unlock Now)'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -1655,6 +1933,113 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _showPaywallDialog(BuildContext context, Property property, String method) {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.payment_rounded, color: Color(0xFFD97706)),
+            SizedBox(width: 8),
+            Text('பிரீமியம் தொடர்பு திறப்பு'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('நீங்கள் 3 இலவச தொடர்புகளையும் பயன்படுத்திவிட்டீர்கள்.'),
+            const SizedBox(height: 10),
+            Text(
+              'உரிமையாளர் (${property.agent.name}) தொடர்பு எண்ணைப் பெற ₹30 (சிறப்பு சலுகை: ₹10) கட்டணம் செலுத்த வேண்டும்.\n\nபணம் செலுத்தியவுடன் தொடர்பு விவரங்கள் உடனடியாக திறக்கப்படும்.',
+              style: const TextStyle(height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ரத்து'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final storage = ref.read(localStorageServiceProvider);
+              await storage.addUnlockedProperty(property.id);
+              await _logContactActivity(property, 'Paid Contact Unlock (₹10) ($method)');
+              if (!mounted) return;
+              setState(() {});
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('🎉 ₹10 கட்டணம் பெறப்பட்டது! தொடர்பு எண் திறக்கப்பட்டது.'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+              _performContactAction(property, method);
+            },
+            icon: const Icon(Icons.lock_open_rounded, size: 16),
+            label: const Text('💳 ₹10 செலுத்தி திறக்க'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performContactAction(Property property, String method) {
+    if (method == 'Call') {
+      _launchCall(property.agent.phone);
+    } else if (method == 'WhatsApp') {
+      _launchWhatsApp(property.agent.phone, property.title, property.agent.name);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('உரிமையாளர் எண்: ${property.agent.phone}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchCall(String phone) async {
+    final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final telUri = Uri(scheme: 'tel', path: clean);
+    if (await canLaunchUrl(telUri)) {
+      await launchUrl(telUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Dialing $phone...'), backgroundColor: AppColors.primary),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchWhatsApp(String phone, String title, String agentName) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final text = Uri.encodeComponent('வணக்கம் $agentName, தென்காசி ட்ரீம்ஸ் ஆப்பில் பதிவிட்டுள்ள "$title" சொத்து பற்றி அறிய விரும்புகிறேன்.');
+    final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _handleChatAction(BuildContext context, Property property) {
+    final user = ref.read(userProfileProvider);
+    if (!user.isLoggedIn) {
+      _showLoginPrompt(context, property, 'Chat');
+      return;
+    }
+
+    _handleChatAgent(context, property);
   }
 
   void _handleChatAgent(BuildContext context, Property property) async {

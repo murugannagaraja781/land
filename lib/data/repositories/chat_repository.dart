@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../core/config/api_config.dart';
 import '../local/local_storage_service.dart';
+import '../../models/agent.dart';
 import '../../models/chat_message.dart';
 import '../../models/notification_item.dart';
 import '../../models/property.dart';
@@ -21,6 +25,103 @@ class ChatRepository {
     }
   }
 
+  Future<void> syncRemoteMessages(String conversationId) async {
+    try {
+      final url = '${ApiConfig.instance.serverUrl}/chat.php?action=messages&conversation_id=$conversationId';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['messages'] is List) {
+          final user = _storage.getUserProfile();
+          final conv = getConversationById(conversationId);
+          if (conv != null) {
+            for (final m in data['messages']) {
+              final sPhone = m['sender_phone'] ?? '';
+              final isMe = sPhone == user.phone;
+              final msgId = m['id'] ?? 'msg_${DateTime.now().millisecondsSinceEpoch}';
+              final exists = conv.messages.any((existing) => existing.id == msgId);
+              if (!exists) {
+                final newMsg = ChatMessage(
+                  id: msgId,
+                  conversationId: conversationId,
+                  text: m['message'] ?? '',
+                  isFromUser: isMe,
+                  timestamp: DateTime.tryParse(m['created_at'] ?? '') ?? DateTime.now(),
+                );
+                await _storage.addMessageToConversation(conversationId, newMsg);
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> syncAllUserConversations(String userPhone) async {
+    final cleanP = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanP.isEmpty) return;
+
+    try {
+      final url = '${ApiConfig.instance.serverUrl}/chat.php?action=conversations&user_phone=$cleanP';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['conversations'] is List) {
+          final convList = data['conversations'] as List;
+          final localConvs = _storage.getConversations();
+
+          for (final c in convList) {
+            final convId = c['id'] ?? '';
+            if (convId.isEmpty) continue;
+
+            final sPhone = (c['seller_phone'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '');
+            final isSeller = cleanP == sPhone;
+
+            final counterpartName = isSeller ? (c['buyer_name'] ?? 'Buyer') : (c['seller_name'] ?? 'Direct Owner');
+            final counterpartPhone = isSeller ? (c['buyer_phone'] ?? '') : (c['seller_phone'] ?? '');
+
+            final existingIndex = localConvs.indexWhere((lc) => lc.id == convId);
+
+            if (existingIndex == -1) {
+              final newConv = ChatConversation(
+                id: convId,
+                agent: Agent(
+                  id: 'agent_$convId',
+                  name: counterpartName,
+                  agencyName: isSeller ? 'வாங்குபவர் (Buyer)' : 'சொத்து உரிமையாளர் (Owner)',
+                  phone: counterpartPhone,
+                  email: '',
+                  avatarKey: 'agent_1',
+                  rating: 5.0,
+                  reviewsCount: 1,
+                  experienceYears: 2,
+                  totalListings: 1,
+                  isVerified: true,
+                  about: '',
+                ),
+                property: ChatPropertySummary(
+                  id: c['property_id'] ?? '',
+                  title: c['property_title'] ?? 'Property',
+                  price: 0,
+                  location: 'Tenkasi',
+                  propertyType: 'Property',
+                  areaSqFt: 0,
+                ),
+                lastMessage: c['last_message'] ?? '',
+                lastMessageTime: DateTime.tryParse(c['last_message_time'] ?? '') ?? DateTime.now(),
+                unreadCount: 0,
+                messages: const [],
+              );
+              localConvs.insert(0, newConv);
+              await _storage.saveConversations(localConvs);
+            }
+            await syncRemoteMessages(convId);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> sendMessage({
     required String conversationId,
     required String text,
@@ -34,41 +135,72 @@ class ChatRepository {
       timestamp: DateTime.now(),
     );
 
-    // Persist user message
+    // 1. Persist user message locally
     await _storage.addMessageToConversation(conversationId, userMsg);
 
-    // Simulate Agent intelligent reply after 1.8 seconds
-    Timer(const Duration(milliseconds: 1800), () async {
-      final replyText = _generateSmartReply(text);
-      final agentMsg = ChatMessage(
-        id: 'msg_agent_${DateTime.now().millisecondsSinceEpoch}',
-        conversationId: conversationId,
-        text: replyText,
-        isFromUser: false,
-        timestamp: DateTime.now(),
-        isRead: false,
-      );
+    final conv = getConversationById(conversationId);
+    final user = _storage.getUserProfile();
+    final cleanUserP = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final cleanAgentP = (conv?.agent.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    final isSeller = cleanUserP.isNotEmpty && cleanUserP == cleanAgentP;
 
-      await _storage.addMessageToConversation(conversationId, agentMsg);
+    // 2. Send to live server chat.php
+    try {
+      final url = '${ApiConfig.instance.serverUrl}/chat.php';
+      await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'action': 'send',
+          'conversation_id': conversationId,
+          'property_id': conv?.property.id ?? '',
+          'property_title': conv?.property.title ?? '',
+          'buyer_name': isSeller ? (conv?.agent.name ?? 'Customer') : (user.name.isNotEmpty ? user.name : 'Customer'),
+          'buyer_phone': isSeller ? (conv?.agent.phone ?? '') : user.phone,
+          'seller_name': isSeller ? (user.name.isNotEmpty ? user.name : 'Direct Owner') : (conv?.agent.name ?? 'Direct Owner'),
+          'seller_phone': isSeller ? user.phone : (conv?.agent.phone ?? ''),
+          'sender_phone': user.phone,
+          'sender_name': user.name.isNotEmpty ? user.name : (isSeller ? 'Owner' : 'Customer'),
+          'sender_role': isSeller ? 'seller' : 'buyer',
+          'message': text,
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
 
-      // Add a notification as well
-      final conv = getConversationById(conversationId);
-      if (conv != null) {
-        final notif = NotificationItem(
-          id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
-          title: 'Reply from ${conv.agent.name}',
-          message: replyText,
+    // 3. Fallback smart assistant reply ONLY for buyers if seller is offline
+    if (!isSeller) {
+      Timer(const Duration(milliseconds: 1500), () async {
+        final replyText = _generateSmartReply(text);
+        final agentMsg = ChatMessage(
+          id: 'msg_agent_${DateTime.now().millisecondsSinceEpoch}',
+          conversationId: conversationId,
+          text: replyText,
+          isFromUser: false,
           timestamp: DateTime.now(),
-          type: 'enquiry',
-          propertyId: conv.property.id,
+          isRead: false,
         );
-        final notifs = _storage.getNotifications();
-        notifs.insert(0, notif);
-        await _storage.saveNotifications(notifs);
-      }
 
-      onAgentReplied(agentMsg);
-    });
+        await _storage.addMessageToConversation(conversationId, agentMsg);
+
+        // Add a notification as well
+        final currentConv = getConversationById(conversationId);
+        if (currentConv != null) {
+          final notif = NotificationItem(
+            id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
+            title: 'Reply from ${currentConv.agent.name}',
+            message: replyText,
+            timestamp: DateTime.now(),
+            type: 'enquiry',
+            propertyId: currentConv.property.id,
+          );
+          final notifs = _storage.getNotifications();
+          notifs.insert(0, notif);
+          await _storage.saveNotifications(notifs);
+        }
+
+        onAgentReplied(agentMsg);
+      });
+    }
   }
 
   String _generateSmartReply(String userMessage) {

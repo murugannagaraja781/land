@@ -70,6 +70,7 @@ function getPropertiesData() {
                         'isFavorite' => (bool)($r['isFavorite'] ?? false),
                         'isVerified' => (bool)($r['isVerified'] ?? true),
                         'isFeatured' => (bool)($r['isFeatured'] ?? false),
+                        'isPremium' => (bool)($r['isPremium'] ?? false),
                         'isUserPosted' => (bool)($r['isUserPosted'] ?? false),
                         'views' => (int)($r['views'] ?? 0),
                         'enquiries' => (int)($r['enquiries'] ?? 0)
@@ -374,6 +375,34 @@ switch ($method) {
                 'success' => true,
                 'message' => 'விளம்பரம் நிராகரிக்கப்பட்டது (Property Rejected)',
                 'propertyId' => $propId
+            ]);
+            break;
+        }
+
+        // Handle Admin Toggle Premium / Free Action
+        if ($action === 'toggle_premium') {
+            $propId = $input['id'] ?? $_GET['id'] ?? null;
+            if (!$propId) {
+                sendResponse(['success' => false, 'message' => 'Property ID is required'], 400);
+            }
+            $isPremium = !empty($input['isPremium']);
+            // Update in DB
+            updatePropertyInDb($propId, ['isPremium' => $isPremium ? 1 : 0]);
+            // Update in JSON
+            $properties = readJsonStorage('properties.json');
+            foreach ($properties as &$p) {
+                if ($p['id'] == $propId) {
+                    $p['isPremium'] = $isPremium;
+                    break;
+                }
+            }
+            writeJsonStorage('properties.json', $properties);
+
+            sendResponse([
+                'success' => true,
+                'message' => $isPremium ? 'விளம்பரம் கட்டணம் (Paid / Premium) என மாற்றப்பட்டது!' : 'விளம்பரம் இலவசம் (Free) என மாற்றப்பட்டது!',
+                'propertyId' => $propId,
+                'isPremium' => $isPremium
             ]);
             break;
         }

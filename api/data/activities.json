@@ -1,5 +1,34 @@
 [
     {
+        "id": "act_1789908603_426",
+        "user_name": "Ravi",
+        "user_phone": "9876543210",
+        "user_email": "",
+        "action_type": "chat_message",
+        "action_title": "அரட்டை செய்தி அனுப்பப்பட்டது (Chat Message)",
+        "property_id": "prop_1",
+        "property_title": "Tenkasi Land",
+        "seller_name": "Murugan",
+        "seller_phone": "9894174944",
+        "amount": 0,
+        "details": "Is this land available?",
+        "created_at": "2026-09-20 14:50:03"
+    },
+    {
+        "id": "act_1789904988_268",
+        "user_name": "Test Buyer",
+        "user_phone": "9876543210",
+        "user_email": "",
+        "action_type": "contact_unlock_paid",
+        "action_title": "கட்டண தொடர்பு எண் திறப்பு (Razorpay ₹10)",
+        "property_id": "test_prop_01",
+        "property_title": "Tenkasi Prime Land",
+        "seller_name": "Direct Owner",
+        "seller_phone": "",
+        "amount": 10,
+        "created_at": "2026-09-20 13:49:48"
+    },
+    {
         "id": "act_1789895511_126",
         "user_name": "Customer",
         "user_phone": "",

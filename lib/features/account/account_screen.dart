@@ -12,6 +12,7 @@ import 'notifications_screen.dart';
 import 'saved_searches_screen.dart';
 import 'user_leads_and_activities_screen.dart';
 import '../legal/legal_policy_screen.dart';
+import '../../core/l10n/locale_provider.dart';
 
 class AccountScreen extends ConsumerWidget {
   final VoidCallback? onNavigateToMyAds;
@@ -23,6 +24,8 @@ class AccountScreen extends ConsumerWidget {
     final profile = ref.watch(userProfileProvider);
     final favCount = ref.watch(favoritesListProvider).length;
     final myAdsCount = ref.watch(propertiesProvider).where((p) => p.isUserPosted).length;
+    final currentLocale = ref.watch(localeProvider);
+    final isTamil = currentLocale.languageCode == 'ta';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -405,11 +408,24 @@ class AccountScreen extends ConsumerWidget {
               ),
               _buildSettingsTile(
                 icon: Icons.language_rounded,
-                title: 'App Language',
-                subtitle: 'English (UK / India)',
-                trailingText: 'English',
+                iconColor: const Color(0xFF2563EB),
+                title: isTamil ? 'பயன்பாட்டு மொழி (App Language)' : 'App Language',
+                subtitle: isTamil ? 'தமிழ் (Tamil) - மாற்ற தட்டவும்' : 'English (UK / India) - Tap to switch',
+                trailingText: isTamil ? 'தமிழ்' : 'English',
                 onTap: () {
-                  _showToast(context, 'Language: English (Tamil support enabled in settings)');
+                  ref.read(localeProvider.notifier).toggleLocale();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isTamil
+                            ? 'App language switched to English'
+                            : 'பயன்பாட்டு மொழி தமிழுக்கு மாற்றப்பட்டது',
+                      ),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
                 },
               ),
               _buildSettingsTile(

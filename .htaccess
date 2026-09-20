@@ -10,3 +10,7 @@ Options -Indexes
 
 # Directory index
 DirectoryIndex index.php index.html
+
+# Force LiteSpeed LSPHP reload
+# Timestamp: 2026-09-20 11:28:00
+

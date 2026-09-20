@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/api_config.dart';
 import '../../components/common/bottom_nav_bar.dart';
 import '../../state/app_state_providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -20,14 +24,127 @@ class MainNavigationScreen extends ConsumerStatefulWidget {
 
 class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   int _currentIndex = 0;
+  Timer? _heartbeatTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sendHeartbeat();
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _sendHeartbeat();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _heartbeatTimer?.cancel();
+    super.dispose();
+  }
+
+  String _getScreenName(int index) {
+    switch (index) {
+      case 0:
+        return 'முகப்பு (Home)';
+      case 1:
+        return 'செய்திகள் (Chat Messages)';
+      case 2:
+        return 'எனது விளம்பரங்கள் (My Ads)';
+      case 3:
+        return 'கணக்கு (Profile/Account)';
+      default:
+        return 'App Screen';
+    }
+  }
+
+  Future<void> _sendHeartbeat() async {
+    try {
+      final user = ref.read(userProfileProvider);
+      final url = '${ApiConfig.instance.serverUrl}/users.php';
+      final res = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'action': 'heartbeat',
+          'user_id': user.phone.isNotEmpty ? user.phone : 'mobile_guest',
+          'user_name': user.name.isNotEmpty ? user.name : 'Mobile App User',
+          'user_phone': user.phone,
+          'user_email': user.email,
+          'platform': 'Android App (Flutter)',
+          'current_screen': _getScreenName(_currentIndex),
+          'role': 'buyer',
+        }),
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['unread_admin_messages'] is List) {
+          final unreadMsgs = data['unread_admin_messages'] as List;
+          if (unreadMsgs.isNotEmpty && mounted) {
+            for (final m in unreadMsgs) {
+              _showAdminMessageDialog(m);
+              // Mark as read
+              http.post(
+                Uri.parse('${ApiConfig.instance.serverUrl}/users.php'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'action': 'mark_read', 'message_id': m['id']}),
+              ).then((_) {}).catchError((_) {});
+            }
+          }
+        }
+      }
+
+      // Also sync remote chats
+      if (user.phone.isNotEmpty) {
+        ref.read(conversationsProvider.notifier).syncRemoteConversations();
+      }
+    } catch (_) {}
+  }
+
+  void _showAdminMessageDialog(dynamic msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary, size: 26),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                msg['admin_name'] ?? 'Super Admin செய்தி',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          msg['message'] ?? '',
+          style: const TextStyle(fontSize: 14.5, height: 1.5, color: Color(0xFF1E293B)),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('சரி (OK)'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
   }
 
-  void _openPostAdWizard() {
+  void _openPostAdWizard({bool force = false}) {
     final user = ref.read(userProfileProvider);
-    if (!user.isLoggedIn) {
+    if (!force && !user.isLoggedIn) {
       _showLoginRequiredDialog();
       return;
     }
@@ -77,7 +194,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
                 MaterialPageRoute(
                   builder: (_) => LoginScreen(
                     onLoginSuccess: () {
-                      _openPostAdWizard();
+                      _openPostAdWizard(force: true);
                     },
                   ),
                 ),

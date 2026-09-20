@@ -315,6 +315,35 @@ class LocalStorageService {
   }
 
   // ==========================================
+  // UNLOCKED PROPERTIES & FREE CONTACTS
+  // ==========================================
+
+  static const String _keyUnlockedProperties = 'tenkasi_unlocked_properties_v1';
+  static const String _keyFreeContactsUsed = 'tenkasi_free_contacts_used_v1';
+
+  List<String> getUnlockedPropertyIds() {
+    return _prefs.getStringList(_keyUnlockedProperties) ?? [];
+  }
+
+  Future<void> addUnlockedProperty(String propId) async {
+    final list = getUnlockedPropertyIds();
+    if (!list.contains(propId)) {
+      list.add(propId);
+      await _prefs.setStringList(_keyUnlockedProperties, list);
+    }
+  }
+
+  int getFreeContactsUsed() {
+    return _prefs.getInt(_keyFreeContactsUsed) ?? 0;
+  }
+
+  Future<void> incrementFreeContactsUsed() async {
+    final count = getFreeContactsUsed() + 1;
+    await _prefs.setInt(_keyFreeContactsUsed, count);
+  }
+
+
+  // ==========================================
   // BUYER REQUIREMENTS (மக்களின் தேவை)
   // ==========================================
 

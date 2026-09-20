@@ -1,10 +1,25 @@
 {
     "stats": {
-        "totalRevenue": 10,
-        "paidUnlocksCount": 1,
+        "totalRevenue": 20,
+        "paidUnlocksCount": 2,
         "freeViewsCount": 0
     },
     "payments": [
+        {
+            "id": "pay_1789904988_515",
+            "paymentId": "pay_mock_1789924788.74351",
+            "orderId": "order_TeHRrpIoN9Xn3y",
+            "signature": "188f40e1dded054905623b08e28dd8cc62bf73b3eabc1725ed90b9119391dec7",
+            "propId": "test_prop_01",
+            "propTitle": "Tenkasi Prime Land",
+            "buyerName": "Test Buyer",
+            "buyerPhone": "9876543210",
+            "amount": 10,
+            "method": "Razorpay Standard Checkout",
+            "status": "completed",
+            "verified": true,
+            "date": "2026-09-20T13:49:48+02:00"
+        },
         {
             "id": "pay_1789895511_961",
             "paymentId": "pay_test_verified_123",

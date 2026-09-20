@@ -7,6 +7,7 @@ import '../models/chat_message.dart';
 import '../models/notification_item.dart';
 import '../models/property.dart';
 import '../models/user_profile.dart';
+import '../core/utils/location_service.dart';
 
 // 1. Core Services Providers (initialized at app boot)
 final localStorageServiceProvider = Provider<LocalStorageService>((ref) {
@@ -38,6 +39,80 @@ class SelectedLocationNotifier extends Notifier<String> {
 
 final selectedLocationProvider = NotifierProvider<SelectedLocationNotifier, String>(
   SelectedLocationNotifier.new,
+);
+
+class UserLocationState {
+  final double? latitude;
+  final double? longitude;
+  final bool isLiveGps;
+  final String areaName;
+  final String cityName;
+
+  const UserLocationState({
+    this.latitude,
+    this.longitude,
+    this.isLiveGps = false,
+    this.areaName = 'Tenkasi',
+    this.cityName = 'Tenkasi, Tamil Nadu',
+  });
+
+  UserLocationState copyWith({
+    double? latitude,
+    double? longitude,
+    bool? isLiveGps,
+    String? areaName,
+    String? cityName,
+  }) {
+    return UserLocationState(
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isLiveGps: isLiveGps ?? this.isLiveGps,
+      areaName: areaName ?? this.areaName,
+      cityName: cityName ?? this.cityName,
+    );
+  }
+}
+
+class UserLocationNotifier extends Notifier<UserLocationState> {
+  @override
+  UserLocationState build() {
+    final location = ref.watch(selectedLocationProvider);
+    final coords = LocationService.getCoordinatesForTown(location);
+    return UserLocationState(
+      latitude: coords?['lat'] ?? 8.9594,
+      longitude: coords?['lng'] ?? 77.3160,
+      isLiveGps: false,
+      areaName: location.split(',').first.trim(),
+      cityName: location,
+    );
+  }
+
+  void setLiveLocation(LiveLocationResult result) {
+    state = UserLocationState(
+      latitude: result.latitude,
+      longitude: result.longitude,
+      isLiveGps: result.isLiveGps,
+      areaName: result.estimatedArea,
+      cityName: '${result.estimatedArea}, ${result.estimatedCity}',
+    );
+  }
+
+  void setManualLocation(String location, {double? lat, double? lng}) {
+    final coords = (lat != null && lng != null)
+        ? {'lat': lat, 'lng': lng}
+        : LocationService.getCoordinatesForTown(location);
+    state = UserLocationState(
+      latitude: coords?['lat'] ?? 8.9594,
+      longitude: coords?['lng'] ?? 77.3160,
+      isLiveGps: false,
+      areaName: location.split(',').first.trim(),
+      cityName: location,
+    );
+  }
+}
+
+final userLocationProvider = NotifierProvider<UserLocationNotifier, UserLocationState>(
+  UserLocationNotifier.new,
 );
 
 class SelectedCategoryNotifier extends Notifier<String> {
@@ -124,8 +199,25 @@ final featuredPropertiesProvider = Provider<List<Property>>((ref) {
 });
 
 final nearbyPropertiesProvider = Provider<List<Property>>((ref) {
+  final all = List<Property>.from(ref.watch(propertiesProvider).where((p) => p.status == 'active'));
+  final userLoc = ref.watch(userLocationProvider);
+
+  if (userLoc.latitude != null && userLoc.longitude != null) {
+    all.sort((a, b) {
+      final aLat = a.latitude ?? LocationService.getCoordinatesForTown(a.location)?['lat'] ?? 8.9594;
+      final aLng = a.longitude ?? LocationService.getCoordinatesForTown(a.location)?['lng'] ?? 77.3160;
+      final bLat = b.latitude ?? LocationService.getCoordinatesForTown(b.location)?['lat'] ?? 8.9594;
+      final bLng = b.longitude ?? LocationService.getCoordinatesForTown(b.location)?['lng'] ?? 77.3160;
+
+      final distA = LocationService.calculateDistanceKm(userLoc.latitude!, userLoc.longitude!, aLat, aLng);
+      final distB = LocationService.calculateDistanceKm(userLoc.latitude!, userLoc.longitude!, bLat, bLng);
+
+      return distA.compareTo(distB);
+    });
+    return all.take(6).toList();
+  }
+
   final location = ref.watch(selectedLocationProvider);
-  final all = ref.watch(propertiesProvider).where((p) => p.status == 'active').toList();
   final cityOrArea = location.split(',').first.trim().toLowerCase();
   final matching = all.where((p) => p.location.toLowerCase().contains(cityOrArea)).toList();
   if (matching.length >= 3) return matching;
@@ -134,6 +226,37 @@ final nearbyPropertiesProvider = Provider<List<Property>>((ref) {
 
 final latestPropertiesProvider = Provider<List<Property>>((ref) {
   final all = List<Property>.from(ref.watch(propertiesProvider).where((p) => p.status == 'active'));
+  final userLoc = ref.watch(userLocationProvider);
+
+  if (userLoc.latitude != null && userLoc.longitude != null) {
+    // Check if user is within 200 km of Tenkasi region
+    final distToTenkasi = LocationService.calculateDistanceKm(
+      userLoc.latitude!,
+      userLoc.longitude!,
+      8.9594,
+      77.3160,
+    );
+
+    // If within 200 km, sort by distance (nearest first)
+    if (distToTenkasi < 200) {
+      all.sort((a, b) {
+        final aLat = a.latitude ?? LocationService.getCoordinatesForTown(a.location)?['lat'] ?? 8.9594;
+        final aLng = a.longitude ?? LocationService.getCoordinatesForTown(a.location)?['lng'] ?? 77.3160;
+        final bLat = b.latitude ?? LocationService.getCoordinatesForTown(b.location)?['lat'] ?? 8.9594;
+        final bLng = b.longitude ?? LocationService.getCoordinatesForTown(b.location)?['lng'] ?? 77.3160;
+
+        final distA = LocationService.calculateDistanceKm(userLoc.latitude!, userLoc.longitude!, aLat, aLng);
+        final distB = LocationService.calculateDistanceKm(userLoc.latitude!, userLoc.longitude!, bLat, bLng);
+
+        final cmp = distA.compareTo(distB);
+        if (cmp != 0) return cmp;
+        return b.postedDate.compareTo(a.postedDate);
+      });
+      return all;
+    }
+  }
+
+  // Fallback for foreign / NRI / far away users: Default latest order
   all.sort((a, b) => b.postedDate.compareTo(a.postedDate));
   return all;
 });
@@ -344,6 +467,14 @@ class ConversationsNotifier extends Notifier<List<ChatConversation>> {
     await _chatRepo.startConversationForProperty(property);
     state = _storage.getConversations();
   }
+
+  Future<void> syncRemoteConversations() async {
+    final user = _storage.getUserProfile();
+    if (user.phone.isNotEmpty) {
+      await _chatRepo.syncAllUserConversations(user.phone);
+      state = _storage.getConversations();
+    }
+  }
 }
 
 final conversationsProvider = NotifierProvider<ConversationsNotifier, List<ChatConversation>>(
@@ -395,8 +526,8 @@ class UserProfileNotifier extends Notifier<UserProfile> {
   }
 
   Future<void> updateProfile(UserProfile profile) async {
-    await _storage.saveUserProfile(profile);
     state = profile;
+    await _storage.saveUserProfile(profile);
   }
 }
 

@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
+import '../../core/utils/location_service.dart';
 import '../../core/widgets/animated_favorite_btn.dart';
 import '../../core/widgets/property_visual.dart';
 import '../../models/property.dart';
@@ -29,6 +30,19 @@ class FeaturedPropertyCard extends ConsumerWidget {
       isRental: property.isRental,
     );
 
+    final userLoc = ref.watch(userLocationProvider);
+    String? distanceBadge;
+    if (userLoc.latitude != null && userLoc.longitude != null) {
+      final pLat = property.latitude ?? LocationService.getCoordinatesForTown(property.location)?['lat'];
+      final pLng = property.longitude ?? LocationService.getCoordinatesForTown(property.location)?['lng'];
+      if (pLat != null && pLng != null) {
+        final dist = LocationService.calculateDistanceKm(userLoc.latitude!, userLoc.longitude!, pLat, pLng);
+        if (dist < 150) {
+          distanceBadge = dist < 1.0 ? '${(dist * 1000).round()} m' : '${dist.toStringAsFixed(1)} km';
+        }
+      }
+    }
+
     final areaDisplay = property.landUnit != null && property.landUnitValue != null
         ? '${property.landUnitValue} ${property.landUnit}'
         : '${property.areaSqFt} sq.ft';
@@ -39,11 +53,16 @@ class FeaturedPropertyCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border, width: 1.2),
+        border: Border.all(
+          color: property.isPremium ? const Color(0xFFD97706) : AppColors.border,
+          width: property.isPremium ? 2.0 : 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
+            color: property.isPremium
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.25)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: property.isPremium ? 14 : 10,
             offset: const Offset(0, 3),
           ),
         ],
@@ -97,6 +116,53 @@ class FeaturedPropertyCard extends ConsumerWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Premium or Free Contact Badge
+                  Positioned(
+                    top: 10,
+                    left: 88,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: property.isPremium
+                            ? const LinearGradient(
+                                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                              )
+                            : null,
+                        color: property.isPremium ? null : const Color(0xFF059669),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            property.isPremium ? Icons.workspace_premium_rounded : Icons.lock_open_rounded,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            property.isPremium
+                                ? (ref.isTamil ? 'பிரீமியம்' : 'PREMIUM')
+                                : (ref.isTamil ? 'இலவசம்' : 'FREE'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ],
@@ -168,13 +234,43 @@ class FeaturedPropertyCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Price
-                    Text(
-                      priceStr,
-                      style: AppTextStyles.priceLarge.copyWith(
-                        fontSize: 18,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            priceStr,
+                            style: AppTextStyles.priceLarge.copyWith(
+                              fontSize: 18,
+                              color: property.isPremium ? const Color(0xFFB45309) : AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (property.isPremium)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFFBEB),
+                              border: Border.all(color: const Color(0xFFFDE68A)),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.workspace_premium_rounded, size: 12, color: Color(0xFFD97706)),
+                                SizedBox(width: 2),
+                                Text(
+                                  'PREMIUM',
+                                  style: TextStyle(
+                                    color: Color(0xFFD97706),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 4),
 
@@ -247,7 +343,7 @@ class FeaturedPropertyCard extends ConsumerWidget {
                                 color: AppColors.textMuted,
                               ),
                               const SizedBox(width: 3),
-                              Expanded(
+                              Flexible(
                                 child: Text(
                                   property.location,
                                   maxLines: 1,
@@ -258,6 +354,25 @@ class FeaturedPropertyCard extends ConsumerWidget {
                                   ),
                                 ),
                               ),
+                              if (distanceBadge != null) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(3),
+                                    border: Border.all(color: const Color(0xFFBFDBFE), width: 0.5),
+                                  ),
+                                  child: Text(
+                                    '📍 $distanceBadge',
+                                    style: const TextStyle(
+                                      color: Color(0xFF1D4ED8),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

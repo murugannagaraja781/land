@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -31,8 +32,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     'Is parking available?',
   ];
 
+  Timer? _pollingTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncMessages();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _syncMessages();
+    });
+  }
+
+  Future<void> _syncMessages() async {
+    try {
+      final repo = ref.read(chatRepositoryProvider);
+      await repo.syncRemoteMessages(widget.conversationId);
+      ref.read(conversationsProvider.notifier).refresh();
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();

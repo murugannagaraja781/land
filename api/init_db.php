@@ -8,6 +8,22 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
+if (isset($_GET['check_payments'])) {
+    $payFile = __DIR__ . '/payments.php';
+    $content = file_exists($payFile) ? file_get_contents($payFile) : '';
+    echo json_encode([
+        'dir' => __DIR__,
+        'file' => __FILE__,
+        'pay_file_exists' => file_exists($payFile),
+        'pay_file_size' => strlen($content),
+        'pay_file_md5' => md5($content),
+        'has_create_order' => strpos($content, 'create_order') !== false,
+        'has_var_export' => strpos($content, 'var_export') !== false,
+        'server_time' => date('Y-m-d H:i:s')
+    ]);
+    exit();
+}
+
 require_once __DIR__ . '/config.php';
 
 $pdo = getDbConnection();
@@ -95,12 +111,16 @@ $queries = [
         `isFavorite` TINYINT(1) DEFAULT 0,
         `isVerified` TINYINT(1) DEFAULT 1,
         `isFeatured` TINYINT(1) DEFAULT 0,
+        `isPremium` TINYINT(1) DEFAULT 0,
         `isUserPosted` TINYINT(1) DEFAULT 0,
         `views` INT DEFAULT 0,
         `enquiries` INT DEFAULT 0,
         `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
         `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
+    // Ensure isPremium column exists for existing tables
+    "ALTER TABLE `properties` ADD COLUMN IF NOT EXISTS `isPremium` TINYINT(1) DEFAULT 0;",
 
     // 3. Buyer Requirements Table
     "CREATE TABLE IF NOT EXISTS `buyer_requirements` (

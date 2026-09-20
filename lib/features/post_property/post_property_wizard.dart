@@ -256,81 +256,94 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      child: Row(
-        children: List.generate(3, (index) {
-          final isActive = index <= _currentStep;
-          final isCurrent = index == _currentStep;
-          final isCompleted = index < _currentStep;
-
-          return Expanded(
-            child: Row(
-              children: [
-                if (index > 0)
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      child: Column(
+        children: [
+          // Stepper Circles with Connectors
+          Row(
+            children: [
+              for (int i = 0; i < 3; i++) ...[
+                if (i > 0)
                   Expanded(
                     child: Container(
-                      height: 2.5,
-                      color: isActive ? AppColors.primary : AppColors.border,
-                    ),
-                  ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
+                      height: 3,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isCompleted
-                            ? AppColors.primary
-                            : (isCurrent ? AppColors.primary : AppColors.border),
-                        shape: BoxShape.circle,
-                        boxShadow: isCurrent
-                            ? [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.35),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                            : null,
+                        color: i <= _currentStep ? AppColors.primary : const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      child: Center(
-                        child: isCompleted
-                            ? const Icon(Icons.check, color: Colors.white, size: 18)
-                            : Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color: isCurrent ? Colors.white : AppColors.textMuted,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      stepLabels[index],
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                        color: isActive ? AppColors.primary : AppColors.textMuted,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-                if (index < 2 && index == 0)
-                  Expanded(
-                    child: Container(
-                      height: 2.5,
-                      color: _currentStep > index ? AppColors.primary : AppColors.border,
                     ),
                   ),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: i < _currentStep
+                        ? AppColors.primary
+                        : (i == _currentStep ? AppColors.primary : Colors.white),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: i <= _currentStep ? AppColors.primary : const Color(0xFFCBD5E1),
+                      width: 2,
+                    ),
+                    boxShadow: i == _currentStep
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: i < _currentStep
+                        ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                        : Text(
+                            '${i + 1}',
+                            style: TextStyle(
+                              color: i == _currentStep ? Colors.white : const Color(0xFF64748B),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Active step title badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'படி ${_currentStep + 1} / 3: ${stepLabels[_currentStep]}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
               ],
             ),
-          );
-        }),
+          ),
+        ],
       ),
     );
   }
@@ -2485,19 +2498,19 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
     if (_selectedMainCategory == 'Land') {
       subCats = [
-        {'id': 'DTCP Approved மனை', 'ta': 'DTCP அப்ரூவல் மனை', 'en': 'DTCP Approved Plot', 'icon': Icons.verified_rounded, 'color': const Color(0xFF047857)},
-        {'id': 'RERA Approved மனை', 'ta': 'RERA அப்ரூவல் மனை', 'en': 'RERA Approved Plot', 'icon': Icons.verified_user_rounded, 'color': const Color(0xFF0284C7)},
-        {'id': 'பஞ்சாயத்து அப்ரூவல் மனை', 'ta': 'பஞ்சாயத்து அப்ரூவல் மனை', 'en': 'Panchayat Approved', 'icon': Icons.account_balance_rounded, 'color': const Color(0xFFD97706)},
-        {'id': 'பட்டா மனை / Unapproved', 'ta': 'பட்டா மனை / Unapproved', 'en': 'Patta / Individual Plot', 'icon': Icons.description_rounded, 'color': const Color(0xFF475569)},
-        {'id': 'காலி வீட்டு மனை', 'ta': 'காலி வீட்டு மனை', 'en': 'Residential Vacant Land', 'icon': Icons.landscape_rounded, 'color': const Color(0xFF059669)},
-        {'id': 'விவசாய பூமி / நஞ்சை', 'ta': 'விவசாய பூமி / நஞ்சை', 'en': 'Agricultural Land', 'icon': Icons.grass_rounded, 'color': const Color(0xFF15803D)},
-        {'id': 'வணிக மனை / Commercial', 'ta': 'வணிக மனை / Commercial', 'en': 'Commercial Plot', 'icon': Icons.store_mall_directory_rounded, 'color': const Color(0xFFB45309)},
+        {'id': 'DTCP Approved மனை', 'ta': 'DTCP மனை', 'en': 'DTCP Approved', 'icon': Icons.verified_rounded, 'color': const Color(0xFF047857)},
+        {'id': 'RERA Approved மனை', 'ta': 'RERA மனை', 'en': 'RERA Approved', 'icon': Icons.verified_user_rounded, 'color': const Color(0xFF0284C7)},
+        {'id': 'பஞ்சாயத்து அப்ரூவல் மனை', 'ta': 'பஞ்சாயத்து மனை', 'en': 'Panchayat Approved', 'icon': Icons.account_balance_rounded, 'color': const Color(0xFFD97706)},
+        {'id': 'பட்டா மனை / Unapproved', 'ta': 'பட்டா மனை', 'en': 'Patta / Individual', 'icon': Icons.description_rounded, 'color': const Color(0xFF475569)},
+        {'id': 'காலி வீட்டு மனை', 'ta': 'காலி மனை', 'en': 'Residential Plot', 'icon': Icons.landscape_rounded, 'color': const Color(0xFF059669)},
+        {'id': 'விவசாய பூமி / நஞ்சை', 'ta': 'விவசாய பூமி', 'en': 'Agri Land', 'icon': Icons.grass_rounded, 'color': const Color(0xFF15803D)},
+        {'id': 'வணிக மனை / Commercial', 'ta': 'வணிக மனை', 'en': 'Commercial Plot', 'icon': Icons.store_mall_directory_rounded, 'color': const Color(0xFFB45309)},
       ];
     } else if (_selectedMainCategory == 'House') {
       subCats = [
         {'id': 'தனி வீடு', 'ta': 'தனி வீடு', 'en': 'Independent House', 'icon': Icons.home_rounded, 'color': const Color(0xFF0284C7)},
-        {'id': 'வில்லா', 'ta': 'வில்லா (Luxury Villa)', 'en': 'Villa House', 'icon': Icons.villa_rounded, 'color': const Color(0xFF0284C7)},
-        {'id': 'பண்ணை வீடு', 'ta': 'பண்ணை வீடு (Farm House)', 'en': 'Farm House', 'icon': Icons.cottage_rounded, 'color': const Color(0xFF15803D)},
+        {'id': 'வில்லா', 'ta': 'வில்லா (Villa)', 'en': 'Villa House', 'icon': Icons.villa_rounded, 'color': const Color(0xFF0284C7)},
+        {'id': 'பண்ணை வீடு', 'ta': 'பண்ணை வீடு', 'en': 'Farm House', 'icon': Icons.cottage_rounded, 'color': const Color(0xFF15803D)},
         {'id': 'கெஸ்ட் House', 'ta': 'கெஸ்ட் House', 'en': 'Guest House', 'icon': Icons.bungalow_rounded, 'color': const Color(0xFF0D9488)},
         {'id': 'நத்தம் பட்டா வீடு', 'ta': 'நத்தம் பட்டா வீடு', 'en': 'Natham Patta House', 'icon': Icons.badge_rounded, 'color': const Color(0xFFD97706)},
         {'id': 'ஓட்டு வீடு', 'ta': 'ஓட்டு வீடு', 'en': 'Tiled Roof House', 'icon': Icons.roofing_rounded, 'color': const Color(0xFFEA580C)},
@@ -2572,7 +2585,7 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
             crossAxisCount: 2,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 2.1,
+            childAspectRatio: 2.25,
           ),
           itemBuilder: (context, index) {
             final item = subCats[index];
@@ -2755,53 +2768,57 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
   Widget _buildBottomActions() {
     final isLastStep = _currentStep == _totalSteps - 1;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          if (_currentStep > 0) ...[
-            Expanded(
-              flex: 1,
-              child: OutlinedButton(
-                onPressed: () => setState(() => _currentStep--),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('பின்செல் (Back)', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-              ),
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: const Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
             ),
-            const SizedBox(width: 12),
           ],
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: _onNextOrSubmit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isLastStep ? Colors.green.shade700 : AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
+        ),
+        child: Row(
+          children: [
+            if (_currentStep > 0) ...[
+              Expanded(
+                flex: 1,
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _currentStep--),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('பின்செல் (Back)', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                ),
               ),
-              child: Text(
-                isLastStep ? 'விளம்பரம் பதிவிடு (Post Property)' : 'அடுத்து (Next) →',
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: _onNextOrSubmit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isLastStep ? Colors.green.shade700 : AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+                child: Text(
+                  isLastStep ? 'விளம்பரம் பதிவிடு (Post Property)' : 'அடுத்து (Next) →',
+                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

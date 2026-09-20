@@ -27,93 +27,152 @@ class LiveLocationResult {
 }
 
 class LocationService {
-  /// Known Tamil Nadu reference points for reverse matching
+  /// Known Tenkasi & Tamil Nadu reference points for reverse matching and distance sorting
   static final List<Map<String, dynamic>> _tnKnownCenters = [
     {
-      'city': 'Chennai',
-      'area': 'Anna Nagar',
-      'lat': 13.0850,
-      'lng': 80.2101,
-      'pincode': '600040',
-    },
-    {
-      'city': 'Chennai',
-      'area': 'Porur',
-      'lat': 13.0382,
-      'lng': 80.1565,
-      'pincode': '600116',
-    },
-    {
-      'city': 'Chennai',
-      'area': 'Tambaram',
-      'lat': 12.9249,
-      'lng': 80.1000,
-      'pincode': '600045',
-    },
-    {
-      'city': 'Chennai',
-      'area': 'Velachery',
-      'lat': 12.9815,
-      'lng': 80.2180,
-      'pincode': '600042',
-    },
-    {
-      'city': 'Chennai',
-      'area': 'OMR - Sholinganallur',
-      'lat': 12.9010,
-      'lng': 80.2279,
-      'pincode': '600119',
-    },
-    {
-      'city': 'Coimbatore',
-      'area': 'RS Puram',
-      'lat': 11.0089,
-      'lng': 76.9535,
-      'pincode': '641002',
-    },
-    {
-      'city': 'Madurai',
-      'area': 'KK Nagar',
-      'lat': 9.9252,
-      'lng': 78.1198,
-      'pincode': '625020',
-    },
-    {
-      'city': 'Tirunelveli',
-      'area': 'Palayamkottai',
-      'lat': 8.7139,
-      'lng': 77.7567,
-      'pincode': '627002',
+      'city': 'Tenkasi',
+      'area': 'பாவூர்சத்திரம் (Pavoorchatram)',
+      'shortName': 'Pavoorchatram',
+      'lat': 8.9056,
+      'lng': 77.3828,
+      'pincode': '627808',
     },
     {
       'city': 'Tenkasi',
-      'area': 'Courtallam Road',
+      'area': 'தென்காசி (Tenkasi)',
+      'shortName': 'Tenkasi',
       'lat': 8.9594,
       'lng': 77.3160,
       'pincode': '627811',
     },
     {
-      'city': 'Trichy',
-      'area': 'Thillai Nagar',
-      'lat': 10.8286,
-      'lng': 78.6854,
-      'pincode': '620018',
+      'city': 'Tenkasi',
+      'area': 'குற்றாலம் (Courtallam)',
+      'shortName': 'Courtallam',
+      'lat': 8.9324,
+      'lng': 77.2690,
+      'pincode': '627802',
     },
     {
-      'city': 'Salem',
-      'area': 'Fairlands',
-      'lat': 11.6643,
-      'lng': 78.1460,
-      'pincode': '636016',
+      'city': 'Tenkasi',
+      'area': 'சுரண்டை (Surandai)',
+      'shortName': 'Surandai',
+      'lat': 8.9772,
+      'lng': 77.4244,
+      'pincode': '627859',
+    },
+    {
+      'city': 'Tenkasi',
+      'area': 'ஆலங்குளம் (Alangulam)',
+      'shortName': 'Alangulam',
+      'lat': 8.8711,
+      'lng': 77.4983,
+      'pincode': '627851',
+    },
+    {
+      'city': 'Tenkasi',
+      'area': 'கடையநல்லூர் (Kadayanallur)',
+      'shortName': 'Kadayanallur',
+      'lat': 9.0754,
+      'lng': 77.3482,
+      'pincode': '627751',
+    },
+    {
+      'city': 'Tenkasi',
+      'area': 'செங்கோட்டை (Shenkottai)',
+      'shortName': 'Shenkottai',
+      'lat': 8.9857,
+      'lng': 77.2472,
+      'pincode': '627809',
+    },
+    {
+      'city': 'Tenkasi',
+      'area': 'சங்கரன்கோவில் (Sankarankovil)',
+      'shortName': 'Sankarankovil',
+      'lat': 9.1722,
+      'lng': 77.5325,
+      'pincode': '627756',
+    },
+    {
+      'city': 'Tenkasi',
+      'area': 'புளியங்குடி (Puliyangudi)',
+      'shortName': 'Puliyangudi',
+      'lat': 9.1672,
+      'lng': 77.3995,
+      'pincode': '627855',
+    },
+    {
+      'city': 'Tirunelveli',
+      'area': 'திருநெல்வேலி (Tirunelveli)',
+      'shortName': 'Tirunelveli',
+      'lat': 8.7139,
+      'lng': 77.7567,
+      'pincode': '627002',
+    },
+    {
+      'city': 'Tirunelveli',
+      'area': 'அம்பாசமுத்திரம் (Ambasamudram)',
+      'shortName': 'Ambasamudram',
+      'lat': 8.7058,
+      'lng': 77.4526,
+      'pincode': '627401',
+    },
+    {
+      'city': 'Madurai',
+      'area': 'மதுரை (Madurai)',
+      'shortName': 'Madurai',
+      'lat': 9.9252,
+      'lng': 78.1198,
+      'pincode': '625020',
+    },
+    {
+      'city': 'Chennai',
+      'area': 'சென்னை (Chennai)',
+      'shortName': 'Chennai',
+      'lat': 13.0827,
+      'lng': 80.2707,
+      'pincode': '600001',
     },
   ];
+
+  /// Calculate distance between two coordinates in Kilometers
+  static double calculateDistanceKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    try {
+      final meters = Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
+      return meters / 1000.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  /// Get coordinates for a town name (e.g. 'Pavoorchatram', 'Tenkasi')
+  static Map<String, double>? getCoordinatesForTown(String townName) {
+    final query = townName.toLowerCase();
+    for (final center in _tnKnownCenters) {
+      final shortName = (center['shortName'] as String).toLowerCase();
+      final area = (center['area'] as String).toLowerCase();
+      final city = (center['city'] as String).toLowerCase();
+      if (query.contains(shortName) || query.contains(area) || query.contains(city)) {
+        return {
+          'lat': center['lat'] as double,
+          'lng': center['lng'] as double,
+        };
+      }
+    }
+    // Default to Tenkasi Central
+    return {'lat': 8.9594, 'lng': 77.3160};
+  }
 
   /// Request live device location using Geolocator
   static Future<LiveLocationResult> getCurrentLiveLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        // Fallback default coordinates (Chennai / Porur)
         return _fallbackLocation(
           error: 'Location services are disabled on this device. Using default coordinates.',
         );
@@ -175,7 +234,8 @@ class LocationService {
     }
 
     return {
-      'area': closest['area'] as String,
+      'area': closest['shortName'] as String,
+      'fullName': closest['area'] as String,
       'city': closest['city'] as String,
       'pincode': closest['pincode'] as String,
     };
@@ -183,12 +243,12 @@ class LocationService {
 
   static LiveLocationResult _fallbackLocation({String? error}) {
     return LiveLocationResult(
-      latitude: 13.0382,
-      longitude: 80.1565,
+      latitude: 8.9594,
+      longitude: 77.3160,
       accuracy: 25.0,
-      estimatedArea: 'Porur',
-      estimatedCity: 'Chennai',
-      postalCode: '600116',
+      estimatedArea: 'Tenkasi',
+      estimatedCity: 'Tenkasi',
+      postalCode: '627811',
       isLiveGps: false,
       error: error,
     );

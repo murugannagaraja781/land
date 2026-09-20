@@ -39,7 +39,7 @@ class PropertyCard extends StatelessWidget {
 
     return Container(
       width: cardWidth,
-      margin: const EdgeInsets.only(right: 16),
+      margin: cardWidth == double.infinity ? EdgeInsets.zero : const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),

@@ -300,9 +300,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         physics: const BouncingScrollPhysics(),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          crossAxisSpacing: 14,
-                          mainAxisSpacing: 14,
-                          childAspectRatio: 0.68,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.63,
                         ),
                         itemCount: results.length,
                         itemBuilder: (context, index) {

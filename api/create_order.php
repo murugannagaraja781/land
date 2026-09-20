@@ -83,5 +83,6 @@ sendResponse([
     'order_id' => $result['id'],
     'amount' => $result['amount'],
     'currency' => $result['currency'],
-    'key_id' => RAZORPAY_KEY_ID
+    'key_id' => RAZORPAY_KEY_ID,
+    'mode' => RAZORPAY_MODE
 ], 200);

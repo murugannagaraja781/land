@@ -207,8 +207,112 @@ switch ($method) {
             }
         }
 
-        usort($userMap, function($a, $b) {
-            return $b['totalActivities'] <=> $a['totalActivities'];
+        // Build property-level views and seller analytics
+        $propViewsMap = [];
+        $propUnlocksMap = [];
+
+        foreach ($allActivities as $act) {
+            $type = $act['action_type'] ?? $act['actionType'] ?? '';
+            $pId = trim($act['property_id'] ?? $act['propertyId'] ?? '');
+            $uName = trim($act['user_name'] ?? $act['userName'] ?? 'Customer');
+            $uPhone = trim($act['user_phone'] ?? $act['userPhone'] ?? '');
+            $uEmail = trim($act['user_email'] ?? $act['userEmail'] ?? '');
+            $time = $act['created_at'] ?? $act['createdAt'] ?? '';
+
+            if (!empty($pId)) {
+                if (!isset($propViewsMap[$pId])) {
+                    $propViewsMap[$pId] = [
+                        'property_id' => $pId,
+                        'property_title' => $act['property_title'] ?? $act['propertyTitle'] ?? '',
+                        'seller_name' => $act['seller_name'] ?? $act['sellerName'] ?? '',
+                        'seller_phone' => $act['seller_phone'] ?? $act['sellerPhone'] ?? '',
+                        'views_count' => 0,
+                        'viewers' => []
+                    ];
+                }
+                if (!isset($propUnlocksMap[$pId])) {
+                    $propUnlocksMap[$pId] = [
+                        'unlocks_count' => 0,
+                        'unlocks' => []
+                    ];
+                }
+
+                if ($type === 'property_view') {
+                    $propViewsMap[$pId]['views_count']++;
+                    $propViewsMap[$pId]['viewers'][] = [
+                        'user_name' => $uName,
+                        'user_phone' => $uPhone,
+                        'user_email' => $uEmail,
+                        'viewed_at' => $time
+                    ];
+                } elseif (strpos($type, 'contact') !== false) {
+                    $propUnlocksMap[$pId]['unlocks_count']++;
+                    $propUnlocksMap[$pId]['unlocks'][] = [
+                        'user_name' => $uName,
+                        'user_phone' => $uPhone,
+                        'user_email' => $uEmail,
+                        'action_type' => $type,
+                        'unlocked_at' => $time
+                    ];
+                }
+            }
+        }
+
+        // Fetch properties to correlate sellers and posted ads
+        $propsFile = DATA_DIR . '/properties.json';
+        $allProps = [];
+        if (file_exists($propsFile)) {
+            $rawP = file_get_contents($propsFile);
+            $decP = json_decode($rawP, true);
+            if (is_array($decP)) $allProps = $decP;
+        }
+        if ($pdo) {
+            try {
+                $pStmt = $pdo->query("SELECT id, title, price, propertyType, status, sellerName, sellerPhone, contactPhone, postedDate FROM `properties`");
+                $dbProps = $pStmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($dbProps)) $allProps = $dbProps;
+            } catch (Exception $e) {}
+        }
+
+        $postersMap = [];
+        foreach ($allProps as $p) {
+            $sPhone = trim($p['sellerPhone'] ?? $p['contactPhone'] ?? $p['seller_phone'] ?? '');
+            $sName = trim($p['sellerName'] ?? $p['seller_name'] ?? 'Direct Owner');
+            if (empty($sPhone)) continue;
+
+            $sKey = preg_replace('/[^0-9]/', '', $sPhone);
+            if (!isset($postersMap[$sKey])) {
+                $postersMap[$sKey] = [
+                    'seller_name' => $sName,
+                    'seller_phone' => $sPhone,
+                    'total_properties' => 0,
+                    'total_views_received' => 0,
+                    'total_unlocks_received' => 0,
+                    'properties' => []
+                ];
+            }
+
+            $pId = (string)($p['id'] ?? '');
+            $pViews = $propViewsMap[$pId]['views_count'] ?? 0;
+            $pUnlocks = $propUnlocksMap[$pId]['unlocks_count'] ?? 0;
+
+            $postersMap[$sKey]['total_properties']++;
+            $postersMap[$sKey]['total_views_received'] += $pViews;
+            $postersMap[$sKey]['total_unlocks_received'] += $pUnlocks;
+            $postersMap[$sKey]['properties'][] = [
+                'id' => $pId,
+                'title' => $p['title'] ?? '',
+                'price' => (float)($p['price'] ?? 0),
+                'propertyType' => $p['propertyType'] ?? $p['property_type'] ?? 'Land',
+                'status' => $p['status'] ?? 'active',
+                'views_count' => $pViews,
+                'unlocks_count' => $pUnlocks,
+                'viewers' => $propViewsMap[$pId]['viewers'] ?? []
+            ];
+        }
+
+        usort($postersMap, function($a, $b) {
+            return $b['total_views_received'] <=> $a['total_views_received'];
         });
 
         sendResponse([
@@ -222,9 +326,11 @@ switch ($method) {
                 'paidUnlocksCount' => $paidUnlocks,
                 'totalRevenue' => $totalRevenue,
                 'uniqueUsersCount' => count($userMap),
-                'uniqueSellersCount' => count($sellerMap)
+                'uniqueSellersCount' => count($postersMap)
             ],
-            'users' => array_values($userMap)
+            'users' => array_values($userMap),
+            'posters' => array_values($postersMap),
+            'property_views' => array_values($propViewsMap)
         ]);
         break;
 

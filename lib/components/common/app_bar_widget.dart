@@ -16,6 +16,7 @@ class AppBarWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final location = ref.watch(selectedLocationProvider);
+    final userLoc = ref.watch(userLocationProvider);
     final unreadNotifs = ref.watch(unreadNotificationsCountProvider);
 
     return Container(
@@ -26,73 +27,146 @@ class AppBarWidget extends ConsumerWidget {
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
               child: Row(
                 children: [
-                  // Official Logo Image from screenshot
-                  Image.asset(
-                    'assets/images/app_logo.png',
-                    height: 40,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.terrain_rounded, color: AppColors.primary, size: 28),
-                          const SizedBox(width: 6),
-                          Text(
-                            ref.tr('app_title_ta'),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0D47A1),
+                  // Official Logo Image with max constraints
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 145, maxHeight: 36),
+                    child: Image.asset(
+                      'assets/images/app_logo.png',
+                      height: 36,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.terrain_rounded, color: AppColors.primary, size: 22),
+                            const SizedBox(width: 4),
+                            Text(
+                              ref.tr('app_title_ta'),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0D47A1),
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
 
-                  const Spacer(),
+                  const SizedBox(width: 6),
 
                   // Vertical thin divider
                   Container(
-                    height: 24,
-                    width: 1.2,
+                    height: 20,
+                    width: 1,
                     color: const Color(0xFFCBD5E1),
-                    margin: const EdgeInsets.symmetric(horizontal: 10),
                   ),
 
-                  // Location Pin & Dropdown
+                  const SizedBox(width: 4),
+
+                  // Location Pin & Dropdown (Flexible with ellipsis so it NEVER overflows!)
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => LocationDialog.show(context),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              userLoc.isLiveGps ? Icons.my_location_rounded : Icons.location_on,
+                              size: 16,
+                              color: userLoc.isLiveGps ? const Color(0xFF10B981) : const Color(0xFF1565C0),
+                            ),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                userLoc.areaName.isNotEmpty
+                                    ? userLoc.areaName
+                                    : (location.isNotEmpty
+                                        ? location.split(',').first.trim()
+                                        : ref.tr('location_default')),
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (userLoc.isLiveGps) ...[
+                              const SizedBox(width: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(color: const Color(0xFF86EFAC), width: 0.8),
+                                ),
+                                child: const Text(
+                                  'LIVE',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF15803D),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 16,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Language Switcher Toggle Pill (தமிழ் / English)
                   InkWell(
-                    onTap: () => LocationDialog.show(context),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    onTap: () {
+                      ref.read(localeProvider.notifier).toggleLocale();
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: ref.isTamil
+                              ? [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]
+                              : [const Color(0xFF065F46), const Color(0xFF059669)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (ref.isTamil ? const Color(0xFF2563EB) : const Color(0xFF059669)).withValues(alpha: 0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1.5),
+                          ),
+                        ],
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.location_on,
-                            size: 20,
-                            color: Color(0xFF1565C0),
-                          ),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.language_rounded, size: 12, color: Colors.white),
+                          const SizedBox(width: 3),
                           Text(
-                            location.isNotEmpty
-                                ? location.split(',').first
-                                : ref.tr('location_default'),
+                            ref.isTamil ? 'தமிழ்' : 'Eng',
                             style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
                             ),
-                          ),
-                          const SizedBox(width: 2),
-                          const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: Color(0xFF0F172A),
                           ),
                         ],
                       ),

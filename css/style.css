@@ -807,6 +807,17 @@ body {
   transform: translateY(-3px);
 }
 
+/* Premium Card Distinction */
+.olx-property-card.premium-card {
+  border: 2px solid #D97706;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.22);
+}
+
+.olx-property-card.premium-card:hover {
+  border-color: #B45309;
+  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
+}
+
 .card-top-thumbnail {
   height: 155px;
   background: #E2E8F0;
@@ -837,6 +848,42 @@ body {
   padding: 3px 6px;
   border-radius: 2px;
   letter-spacing: 0.5px;
+}
+
+.badge-premium-tag {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  font-size: 9.5px;
+  font-weight: 900;
+  padding: 3px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 2;
+}
+
+.badge-free-tag {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 3px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 2;
 }
 
 .badge-verified-tag {
@@ -892,6 +939,10 @@ body {
   color: var(--olx-navy);
   margin-bottom: 2px;
   letter-spacing: -0.3px;
+}
+
+.card-price-text.premium-price {
+  color: #B45309;
 }
 
 .card-specs-line {

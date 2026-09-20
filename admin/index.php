@@ -67,10 +67,16 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link" data-tab="pending-ads">
+            <span class="icon">⏳</span>
+            <span>காத்திருப்பில் உள்ளவை (Pending)</span>
+            <span class="badge badge-pending" id="sidebarPendingBadge" style="margin-left:auto; display:none; font-size:11px; padding:2px 7px;">0</span>
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" data-tab="properties">
             <span class="icon">🏡</span>
-            <span>விளம்பரங்கள் (Properties)</span>
-            <span class="badge badge-pending" id="sidebarPendingBadge" style="margin-left:auto; display:none; font-size:11px; padding:2px 7px;">0</span>
+            <span>அனைத்து விளம்பரங்கள் (All Ads)</span>
           </a>
         </li>
         <li class="nav-item">
@@ -101,6 +107,13 @@
           <a class="nav-link" data-tab="user-activities">
             <span class="icon">👥</span>
             <span>பயனர்கள் செயல்பாடு (Activities)</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="live-users">
+            <span class="icon">🟢</span>
+            <span>நேரலை பயனர்கள் (Live Users)</span>
+            <span class="badge badge-emerald" id="sidebarLiveCount" style="margin-left:auto; font-size:11px; padding:2px 7px;">0 Live</span>
           </a>
         </li>
         <li class="nav-item">
@@ -237,15 +250,20 @@
             </div>
           </div>
 
-          <!-- PENDING APPROVALS SECTION -->
+          <!-- PENDING APPROVALS QUICK BANNER (Overview) -->
           <div class="pending-approvals-box" id="pendingApprovalsSection" style="display: none;">
             <div class="pending-box-header">
               <div class="pending-box-title">
                 <span>🔔 சரிபார்க்க வேண்டிய புதிய பயனர் விளம்பரங்கள் (Pending Ad Approvals)</span>
                 <span class="pending-badge-count" id="pendingBoxBadgeCount">0 காத்திருப்பில்</span>
               </div>
-              <div style="font-size: 12px; color: var(--text-muted);">
-                பயனர்கள் சமர்ப்பித்த விளம்பரங்கள் • அப்ரூவல் செய்தவுடன் உடனடியாக தளத்தில் நேரலையாக தோன்றும்
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size: 12px; color: var(--text-muted);">
+                  பயனர்கள் சமர்ப்பித்த விளம்பரங்கள் • அப்ரூவல் செய்தவுடன் உடனடியாக தளத்தில் நேரலையாக தோன்றும்
+                </div>
+                <button class="btn btn-gold" style="font-size:12px; padding:4px 10px;" onclick="switchTab('pending-ads')">
+                  ⏳ அனைத்தையும் சரிபார்க்க →
+                </button>
               </div>
             </div>
             <div class="pending-cards-grid" id="pendingCardsContainer">
@@ -253,6 +271,28 @@
             </div>
           </div>
 
+        </section>
+
+        <!-- TAB: PENDING ADS (காத்திருப்பில் உள்ளவை / வெயிட்டிங் ஃபார் அக்சப்ட்) -->
+        <section id="tab-pending-ads" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">⏳ சரிபார்க்க வேண்டிய பயனர் விளம்பரங்கள் (Pending Ad Approvals / Waiting for Accept)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  பயனர்கள் சமர்ப்பித்த புதிய விளம்பரங்கள் • ஆய்வு செய்து அப்ரூவல் அல்லது நிராகரிக்கலாம்.
+                </p>
+              </div>
+              <span class="badge badge-pending" id="pendingSectionBadgeCount" style="font-size: 13px; padding: 6px 14px;">0 காத்திருப்பில்</span>
+            </div>
+            <div class="pending-cards-grid" id="pendingCardsDedicatedContainer">
+              <!-- Dedicated Pending Property Cards Injected Here -->
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB: ALL PROPERTIES & FREE/PAID PERMISSION CONTROL -->
+        <section id="tab-properties" class="tab-panel">
           <!-- Category Quick Selection Pills -->
           <div class="category-pills-row">
             <div class="cat-pill-card active" data-cat="all">
@@ -291,7 +331,7 @@
           <div class="section-card">
             <div class="section-header">
               <div class="section-title">
-                <span>🏡 சொத்து விளம்பரங்கள் மேலாண்மை (Property Ads Master Table)</span>
+                <span>🏡 அனைத்து சொத்து விளம்பரங்கள் & இலவச/கட்டண அனுமதி (All Ads - Free/Paid Control)</span>
               </div>
 
               <div class="table-controls">
@@ -317,6 +357,12 @@
                   <option value="sold">Sold (விற்பனையானது)</option>
                 </select>
 
+                <select id="tableAccessFilter" class="select-filter" onchange="handleAccessFilterChange(this.value)">
+                  <option value="all">அனைத்து அனுமதிகள் (All Access)</option>
+                  <option value="free">🟢 இலவச விளம்பரங்கள் (Free Only)</option>
+                  <option value="paid">💎 கட்டண விளம்பரங்கள் (Paid Only)</option>
+                </select>
+
                 <button class="btn btn-primary" onclick="openAddPropertyModal()">
                   ➕ விளம்பரம் சேர்
                 </button>
@@ -333,6 +379,7 @@
                     <th>விலை & அளவு (Price & Size)</th>
                     <th>உரிமையாளர் / ஏஜென்ட்</th>
                     <th>சரிபார்ப்பு (Verification)</th>
+                    <th>அணுகல் பர்மிஷன் (Free / Paid)</th>
                     <th>நிலை (Status)</th>
                     <th style="text-align: right;">செயல்கள் (Actions)</th>
                   </tr>
@@ -343,7 +390,6 @@
               </table>
             </div>
           </div>
-
         </section>
 
         <!-- TAB 2: BUYER REQUIREMENTS BOARD -->
@@ -767,20 +813,45 @@
 
                 <div class="form-grid-3">
                   <div class="form-group">
+                    <label class="form-label">Razorpay இயங்கும் முறை (Mode) *</label>
+                    <select id="env_RAZORPAY_MODE" class="form-control">
+                      <option value="test">🧪 Test Mode (சோதனை முறை - rzp_test)</option>
+                      <option value="live">🚀 Live Mode (நேரலை முறை - rzp_live)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
                     <label class="form-label">Razorpay Account ID (Merchant ID)</label>
                     <input type="text" id="env_RAZORPAY_ACCOUNT_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Razorpay Key ID (Client Key) *</label>
-                    <input type="text" id="env_RAZORPAY_KEY_ID" class="form-control" placeholder="acc_Tdw7B4Z0zFh95x">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Razorpay Key Secret</label>
-                    <input type="password" id="env_RAZORPAY_KEY_SECRET" class="form-control" placeholder="••••••••••••">
+                    <label class="form-label">UPI ID (கட்டண பெறுநர்)</label>
+                    <input type="text" id="env_UPI_ID" class="form-control" placeholder="9894174944@upi">
                   </div>
                 </div>
 
-                <div class="form-grid-2">
+                <div class="form-grid-2" style="margin-top:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Live Key ID (நேரலை சாவி - rzp_live_...)</label>
+                    <input type="text" id="env_RAZORPAY_LIVE_KEY_ID" class="form-control" placeholder="rzp_live_xxxxxxxx">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Live Key Secret (நேரலை இரகசிய சாவி)</label>
+                    <input type="password" id="env_RAZORPAY_LIVE_KEY_SECRET" class="form-control" placeholder="••••••••••••">
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-top:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Test Key ID (சோதனை சாவி - rzp_test_...)</label>
+                    <input type="text" id="env_RAZORPAY_TEST_KEY_ID" class="form-control" placeholder="rzp_test_TeE2LFCxmmioPq">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Test Key Secret (சோதனை இரகசிய சாவி)</label>
+                    <input type="password" id="env_RAZORPAY_TEST_KEY_SECRET" class="form-control" placeholder="••••••••••••">
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-top:10px;">
                   <div class="form-group">
                     <label class="form-label">தொடர்பு பார்க்கும் கட்டணம் (Unlock Price in ₹) *</label>
                     <input type="number" id="env_CONTACT_UNLOCK_PRICE" class="form-control" placeholder="30" value="30">
@@ -788,6 +859,59 @@
                   <div class="form-group">
                     <label class="form-label">புதிய பயனருக்கு இலவச தொடர்புகள் (Free Quota) *</label>
                     <input type="number" id="env_FREE_CONTACT_LIMIT" class="form-control" placeholder="3" value="3">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card: SMS & WhatsApp OTP Gateway Settings -->
+              <div style="background: rgba(11, 17, 30, 0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 22px; margin-bottom: 20px;">
+                <div style="font-size:16px; font-weight:700; color:#10B981; display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                  📱 SMS & WhatsApp OTP Gateway (நேரடி OTP அனுப்பும் முறை)
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label class="form-label">SMS Gateway Provider *</label>
+                    <select id="env_SMS_GATEWAY_PROVIDER" class="form-control">
+                      <option value="fast2sms">🇮🇳 Fast2SMS (India Bulk SMS - Recommended)</option>
+                      <option value="twilio">🌐 Twilio (Global SMS)</option>
+                      <option value="whatsapp">💬 WhatsApp Cloud API</option>
+                      <option value="mock">🧪 Test / Dev Mock (இலவச டெஸ்ட் முறை)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">செல்போன் OTP உள்நுழைவு (Phone OTP Login)</label>
+                    <select id="env_PHONE_OTP_ENABLED" class="form-control">
+                      <option value="true">செயலில் உள்ளது (Enabled)</option>
+                      <option value="false">முடக்கப்பட்டது (Disabled)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-grid-2" style="margin-top:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Fast2SMS API Key (Fast2SMS சாவி)</label>
+                    <input type="password" id="env_FAST2SMS_API_KEY" class="form-control" placeholder="Fast2SMS Dev API Key">
+                    <small style="color:var(--text-muted); font-size:11px;">fast2sms.com ➔ Dev API ➔ API Key</small>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Twilio Account SID (விருப்பப்படி)</label>
+                    <input type="text" id="env_TWILIO_ACCOUNT_SID" class="form-control" placeholder="ACxxxxxxxxxxxxxx">
+                  </div>
+                </div>
+
+                <div class="form-grid-3" style="margin-top:10px;">
+                  <div class="form-group">
+                    <label class="form-label">Twilio Auth Token</label>
+                    <input type="password" id="env_TWILIO_AUTH_TOKEN" class="form-control" placeholder="••••••••••••">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Twilio Phone Number</label>
+                    <input type="text" id="env_TWILIO_PHONE_NUMBER" class="form-control" placeholder="+1xxxxxxxxxx">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">WhatsApp Cloud API URL (விருப்பப்படி)</label>
+                    <input type="text" id="env_WHATSAPP_API_URL" class="form-control" placeholder="https://graph.facebook.com/v19.0/...">
                   </div>
                 </div>
               </div>
@@ -1076,70 +1200,273 @@
               </div>
             </div>
 
-            <!-- Filter & Search Controls Bar -->
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
-              <!-- Search Box -->
-              <div style="flex: 1; min-width: 240px;">
-                <input type="text" id="actSearchInput" class="form-control" placeholder="🔍 பயனர் பெயர், எண், சொத்து தலைப்பு தேட..." oninput="filterActivitiesList()">
-              </div>
-
-              <!-- Action Type Filter -->
-              <div style="min-width: 180px;">
-                <select id="actFilterAction" class="form-control" onchange="filterActivitiesList()">
-                  <option value="all">அனைத்து செயல்பாடுகள் (All)</option>
-                  <option value="contact_unlock_free">🔓 இலவச தொடர்பு பார்வை</option>
-                  <option value="contact_unlock_paid">💰 கட்டண தொடர்பு திறப்பு</option>
-                  <option value="property_view">👁️ சொத்து பார்வை</option>
-                  <option value="property_post">📝 புதிய விளம்பரம் பதிவு</option>
-                </select>
-              </div>
-
-              <!-- Filter by Single User Dropdown -->
-              <div style="min-width: 220px;">
-                <select id="actFilterSingleUser" class="form-control" onchange="filterActivitiesByUser(this.value)">
-                  <option value="">👤 அனைத்து பயனர்கள் (All Users)</option>
-                  <!-- Populated dynamically via JS -->
-                </select>
-              </div>
-
-              <button class="btn btn-secondary" onclick="resetActivityFilters()">✕ ரீசெட்</button>
+            <!-- Sub-tabs Navigation Bar -->
+            <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px; flex-wrap: wrap;">
+              <button class="btn btn-primary act-subtab-btn" id="btnSubTabActivities" onclick="switchActSubTab('activities')">
+                📊 அனைத்து செயல்பாடுகள் (All Activities)
+              </button>
+              <button class="btn btn-secondary act-subtab-btn" id="btnSubTabPosters" onclick="switchActSubTab('posters')">
+                📢 சொத்து பதிவிட்ட பயனர்கள் (Property Posters / Sellers)
+              </button>
+              <button class="btn btn-secondary act-subtab-btn" id="btnSubTabPropertyViews" onclick="switchActSubTab('propertyViews')">
+                👁️ விளம்பரம் பார்த்தவர்கள் (Post Views & Viewers)
+              </button>
+              <button class="btn btn-secondary act-subtab-btn" id="btnSubTabChats" onclick="switchActSubTab('chats')">
+                💬 வாங்குபவர்-விற்பனையாளர் அரட்டை (Buyer-Seller Chats)
+              </button>
             </div>
 
-            <!-- Single User Info Banner (shows when filtered by a specific user) -->
-            <div id="actSingleUserBanner" style="display: none; background: rgba(59, 130, 246, 0.12); border: 1.5px solid rgba(59, 130, 246, 0.4); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: none; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 14px;">
-                <div style="width: 44px; height: 44px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff;">👤</div>
-                <div>
-                  <div id="actBannerUserName" style="font-size: 15px; font-weight: 800; color: #93c5fd;">User Name</div>
-                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                    📞 <span id="actBannerUserPhone">-</span> | ✉️ <span id="actBannerUserEmail">-</span>
+            <!-- SUB-TAB 1: ALL ACTIVITIES -->
+            <div id="actSectionActivities">
+              <!-- Filter & Search Controls Bar -->
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
+                <div style="flex: 1; min-width: 240px;">
+                  <input type="text" id="actSearchInput" class="form-control" placeholder="🔍 பயனர் பெயர், எண், சொத்து தலைப்பு தேட..." oninput="filterActivitiesList()">
+                </div>
+                <div style="min-width: 180px;">
+                  <select id="actFilterAction" class="form-control" onchange="filterActivitiesList()">
+                    <option value="all">அனைத்து செயல்பாடுகள் (All)</option>
+                    <option value="contact_unlock_free">🔓 இலவச தொடர்பு பார்வை</option>
+                    <option value="contact_unlock_paid">💰 கட்டண தொடர்பு திறப்பு</option>
+                    <option value="property_view">👁️ சொத்து பார்வை</option>
+                    <option value="property_post">📝 புதிய விளம்பரம் பதிவு</option>
+                    <option value="chat_message">💬 அரட்டை செய்தி</option>
+                  </select>
+                </div>
+                <div style="min-width: 220px;">
+                  <select id="actFilterSingleUser" class="form-control" onchange="filterActivitiesByUser(this.value)">
+                    <option value="">👤 அனைத்து பயனர்கள் (All Users)</option>
+                  </select>
+                </div>
+                <button class="btn btn-secondary" onclick="resetActivityFilters()">✕ ரீசெட்</button>
+              </div>
+
+              <!-- Single User Info Banner -->
+              <div id="actSingleUserBanner" style="display: none; background: rgba(59, 130, 246, 0.12); border: 1.5px solid rgba(59, 130, 246, 0.4); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <div style="width: 44px; height: 44px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff;">👤</div>
+                  <div>
+                    <div id="actBannerUserName" style="font-size: 15px; font-weight: 800; color: #93c5fd;">User Name</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                      📞 <span id="actBannerUserPhone">-</span> | ✉️ <span id="actBannerUserEmail">-</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <span class="badge badge-verified" id="actBannerActivityCount">0 செயல்பாடுகள்</span>
+                  <div style="margin-top: 6px;">
+                    <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="resetActivityFilters()">அனைத்து பயனர்களையும் காட்டு</button>
                   </div>
                 </div>
               </div>
-              <div style="text-align: right;">
-                <span class="badge badge-verified" id="actBannerActivityCount">0 செயல்பாடுகள்</span>
-                <div style="margin-top: 6px;">
-                  <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="resetActivityFilters()">அனைத்து பயனர்களையும் காட்டு</button>
-                </div>
+
+              <!-- Activities Data Table -->
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>தேதி & நேரம்</th>
+                      <th>பயனர் விபரம் (Buyer / User)</th>
+                      <th>செயல்பாடு (Action)</th>
+                      <th>சொத்து விபரம் (Property)</th>
+                      <th>உரிமையாளர் / போஸ்ட் செய்தவர் (Seller)</th>
+                      <th>தொகை</th>
+                      <th>நேரடி தொடர்பு</th>
+                    </tr>
+                  </thead>
+                  <tbody id="activitiesTableBody">
+                    <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ஏற்றப்படுகிறது...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <!-- Activities Data Table -->
+            <!-- SUB-TAB 2: PROPERTY POSTERS / SELLERS -->
+            <div id="actSectionPosters" style="display: none;">
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>விற்பனையாளர் பெயர் (Seller / Poster)</th>
+                      <th>தொலைபேசி எண்</th>
+                      <th>பதிவிட்ட விளம்பரங்கள்</th>
+                      <th>பெற்ற மொத்த பார்வைகள் (Views)</th>
+                      <th>தொடர்பு எண் திறப்புகள் (Unlocks)</th>
+                      <th>நடவடிக்கை</th>
+                    </tr>
+                  </thead>
+                  <tbody id="postersTableBody">
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">விற்பனையாளர்கள் பட்டியல் ஏற்றப்படுகிறது...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- SUB-TAB 3: PROPERTY VIEWS & VIEWERS -->
+            <div id="actSectionPropertyViews" style="display: none;">
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>சொத்து விபரம் (Property Title)</th>
+                      <th>வகை (Type)</th>
+                      <th>உரிமையாளர் (Seller)</th>
+                      <th>பார்வையாளர்கள் எண்ணிக்கை</th>
+                      <th>தொடர்பு திறப்புகள்</th>
+                      <th>பார்த்தவர்கள் விவரம்</th>
+                    </tr>
+                  </thead>
+                  <tbody id="propertyViewsTableBody">
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">பார்வை விவரங்கள் ஏற்றப்படுகிறது...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- SUB-TAB 4: BUYER-SELLER CHATS -->
+            <div id="actSectionChats" style="display: none;">
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>சொத்து (Property)</th>
+                      <th>வாங்குபவர் (Buyer)</th>
+                      <th>விற்பனையாளர் (Seller)</th>
+                      <th>கடைசி செய்தி (Last Message)</th>
+                      <th>நேரம்</th>
+                      <th>சாட் பார்க்க</th>
+                    </tr>
+                  </thead>
+                  <tbody id="chatsTableBody">
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">சாட் உரையாடல்கள் ஏற்றப்படுகிறது...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- MODAL: POSTER ADS & VIEWS MODAL -->
+            <div class="modal" id="posterAdsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+              <div style="background:#1e293b; border-radius:14px; max-width:700px; width:90%; max-height:85vh; overflow-y:auto; padding:24px; border:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                  <h3 id="posterAdsModalTitle" style="color:#fff; font-size:18px; margin:0;">விற்பனையாளர் விளம்பரங்கள்</h3>
+                  <button class="btn btn-secondary" onclick="closePosterAdsModal()" style="padding:4px 10px;">✕ மூடு</button>
+                </div>
+                <div id="posterAdsModalContent"></div>
+              </div>
+            </div>
+
+            <!-- MODAL: PROPERTY VIEWERS MODAL -->
+            <div class="modal" id="propertyViewersModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+              <div style="background:#1e293b; border-radius:14px; max-width:650px; width:90%; max-height:85vh; overflow-y:auto; padding:24px; border:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                  <h3 id="propertyViewersModalTitle" style="color:#fff; font-size:18px; margin:0;">சொத்தை பார்த்தவர்கள் விவரம்</h3>
+                  <button class="btn btn-secondary" onclick="closePropertyViewersModal()" style="padding:4px 10px;">✕ மூடு</button>
+                </div>
+                <div id="propertyViewersModalContent"></div>
+              </div>
+            </div>
+
+            <!-- MODAL: ADMIN CHAT THREAD MODAL -->
+            <div class="modal" id="adminChatModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+              <div style="background:#1e293b; border-radius:14px; max-width:600px; width:90%; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                  <h3 id="adminChatModalTitle" style="color:#fff; font-size:16px; margin:0;">வாங்குபவர்-விற்பனையாளர் சாட்</h3>
+                  <button class="btn btn-secondary" onclick="closeAdminChatModal()" style="padding:4px 10px;">✕ மூடு</button>
+                </div>
+                <div id="adminChatModalMessages" style="flex:1; max-height:400px; overflow-y:auto; padding:12px; background:rgba(15,23,42,0.6); border-radius:10px; margin-bottom:10px;"></div>
+              </div>
+            </div>
+          </div>
+        <!-- ==================== TAB 9: LIVE USERS ==================== -->
+        <section id="tab-live-users" class="tab-panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">🟢 நேரலை பயனர்கள் & உடனடி தொடர்பு (Live Users & Messaging)</h2>
+              <p class="panel-subtitle">ரியல்-டைமில் மொபைல் ஆப் மற்றும் இணையதளத்தில் உலாவிக்கொண்டிருக்கும் பயனர்களின் விவரங்கள்</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="badge badge-emerald" style="display:flex; align-items:center; gap:6px; font-size:12px; padding:6px 12px;">
+                <span style="width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; box-shadow:0 0 8px #10b981;"></span>
+                <span>நேரலை ஒத்திசைவு (Auto Sync 10s)</span>
+              </span>
+              <button type="button" class="btn btn-secondary" onclick="loadLiveUsers()" style="display:flex; align-items:center; gap:6px;">
+                🔄 புதுப்பி (Refresh)
+              </button>
+            </div>
+          </div>
+
+          <!-- Live User Stats Cards -->
+          <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 24px;">
+            <div class="stat-card" style="border-left: 4px solid #10b981;">
+              <div class="stat-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">🟢</div>
+              <div class="stat-info">
+                <div class="stat-label">தற்போது நேரலையில் (Active Now)</div>
+                <div class="stat-value" id="statLiveNow" style="color: #34d399;">0</div>
+                <div class="stat-sub">கடந்த 3 நிமிடங்களில் செயலில் உள்ளோர்</div>
+              </div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+              <div class="stat-icon" style="background: rgba(59,130,246,0.15); color: #3b82f6;">📱</div>
+              <div class="stat-info">
+                <div class="stat-label">மொபைல் ஆப் பயனர்கள் (App Active)</div>
+                <div class="stat-value" id="statAppActive" style="color: #60a5fa;">0</div>
+                <div class="stat-sub">Flutter Android App பயனர்கள்</div>
+              </div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+              <div class="stat-icon" style="background: rgba(245,158,11,0.15); color: #f59e0b;">💻</div>
+              <div class="stat-info">
+                <div class="stat-label">இணையதள பயனர்கள் (Web Active)</div>
+                <div class="stat-value" id="statWebActive" style="color: #fbbf24;">0</div>
+                <div class="stat-sub">Chrome / Safari / Web உலாவிகள்</div>
+              </div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+              <div class="stat-icon" style="background: rgba(139,92,246,0.15); color: #8b5cf6;">👥</div>
+              <div class="stat-info">
+                <div class="stat-label">மொத்த பதிவு செய்த பயனர்கள்</div>
+                <div class="stat-value" id="statTotalUsers" style="color: #c084fc;">0</div>
+                <div class="stat-sub">கண்காணிக்கப்பட்ட மொத்த பயனர்கள்</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter & Search Toolbar -->
+          <div class="filter-bar" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 280px;">
+              <div class="search-box" style="flex: 1; min-width: 200px;">
+                <input type="text" id="liveUserSearchInput" class="form-control" placeholder="🔍 பயனர் பெயர், எண் அல்லது மின்னஞ்சல் மூலம் தேடுக..." oninput="renderLiveUsersTable()">
+              </div>
+              <select id="liveUserStatusFilter" class="form-control" style="width: 170px;" onchange="renderLiveUsersTable()">
+                <option value="all">அனைத்து நிலைகள்</option>
+                <option value="online" selected>🟢 நேரலை (Online)</option>
+                <option value="idle">🟡 செயலற்றோர் (Idle)</option>
+                <option value="offline">⚪ ஆஃப்லைன் (Offline)</option>
+              </select>
+              <select id="liveUserPlatformFilter" class="form-control" style="width: 170px;" onchange="renderLiveUsersTable()">
+                <option value="all">அனைத்து தளங்கள்</option>
+                <option value="app">📱 Android App</option>
+                <option value="web">💻 Web Browser</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live Users Data Table -->
+          <div class="card">
             <div class="table-container">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>தேதி & நேரம்</th>
-                    <th>பயனர் விபரம் (Buyer / User)</th>
-                    <th>செயல்பாடு (Action)</th>
-                    <th>சொத்து விபரம் (Property)</th>
-                    <th>உரிமையாளர் / போஸ்ட் செய்தவர் (Seller)</th>
-                    <th>தொகை</th>
-                    <th>நேரடி தொடர்பு</th>
+                    <th>நிலை (Status)</th>
+                    <th>பயனர் விபரம் (User Name & Info)</th>
+                    <th>தளம் (Platform)</th>
+                    <th>தற்போதைய திரை / செயல்பாடு</th>
+                    <th>கடைசி இயக்கம் (Last Active)</th>
+                    <th style="text-align: right;">நடவடிக்கை (Action)</th>
                   </tr>
                 </thead>
-                <tbody id="activitiesTableBody">
-                  <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ஏற்றப்படுகிறது...</td></tr>
+                <tbody id="liveUsersTableBody">
+                  <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">நேரலை பயனர்கள் பட்டியல் ஏற்றப்படுகிறது...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1368,7 +1695,7 @@
 
   <!-- Property Detailed Review Inspector Modal -->
   <div class="modal" id="propertyInspectModal">
-    <div class="modal-dialog" style="max-width: 680px;">
+    <div class="modal-dialog" style="max-width: 740px;">
       <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title" id="inspectModalTitle">👁 விளம்பர முழு விவரங்கள் (Property Review)</h3>
@@ -1381,6 +1708,54 @@
           <!-- Injected via JS -->
         </div>
       </div>
+    </div>
+  <!-- Modal: Super Admin Direct Message Modal -->
+  <div class="modal" id="adminDirectMsgModal">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <form class="modal-content" onsubmit="submitAdminDirectMsg(event)">
+        <div class="modal-header">
+          <h3 class="modal-title">💬 நேரடி செய்தி அனுப்பு (Direct Message to User)</h3>
+          <button type="button" class="modal-close" onclick="closeModal('adminDirectMsgModal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="adminMsgUserId">
+          <input type="hidden" id="adminMsgUserPhone">
+
+          <!-- Recipient Preview Box -->
+          <div style="background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
+            <div style="font-size: 11px; color: var(--text-muted);">பெறுநர் விபரம் (Recipient):</div>
+            <div style="font-size: 15px; font-weight: 700; color: #fff;" id="adminMsgRecipientName">-</div>
+            <div style="font-size: 13px; color: #60a5fa;" id="adminMsgRecipientPhone">-</div>
+          </div>
+
+          <!-- Quick Templates -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="font-size: 12px;">⚡ விரைவு டெம்ப்ளேட்டுகள் (Quick Templates):</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyMsgTemplate('வணக்கம்! நீங்கள் தேடும் சொத்து விபரம் குறித்து உதவ நாங்கள் தயாராக உள்ளோம். ஏதேனும் சந்தேகங்கள் உள்ளதா?')">
+                🤝 உதவி வேண்டுமா?
+              </button>
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyMsgTemplate('சிறப்பு சலுகை: உங்கள் சொத்தை தென்காசி கனவுகள் தளத்தில் இன்று இலவசமாக பதிவேற்றுங்கள்!')">
+                🎁 இலவச விளம்பர சலுகை
+              </button>
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyMsgTemplate('வணக்கம்! நீங்கள் பார்த்த சொத்தின் உரிமையாளரிடம் பேச விரும்புகிறீர்களா? எங்களை +91 98941 74944 எண்ணில் தொடர்பு கொள்ளவும்.')">
+                📞 அழைப்பு உதவி
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">செய்தி (Message Content) *</label>
+            <textarea id="adminMsgText" class="form-control" rows="4" placeholder="பயனருக்கு அனுப்ப வேண்டிய செய்தியை தட்டச்சு செய்யவும்..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('adminDirectMsgModal')">ரத்து</button>
+          <button type="submit" class="btn btn-primary" id="btnSendAdminMsg">
+            🚀 செய்தி அனுப்பு (Send Message)
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
