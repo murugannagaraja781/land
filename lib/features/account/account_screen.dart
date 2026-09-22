@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/config/api_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../state/app_state_providers.dart';
@@ -11,19 +10,64 @@ import 'favorites_screen.dart';
 import 'notifications_screen.dart';
 import 'saved_searches_screen.dart';
 import 'user_leads_and_activities_screen.dart';
+import 'user_requests_screen.dart';
 import '../legal/legal_policy_screen.dart';
 import '../../core/l10n/locale_provider.dart';
 
-class AccountScreen extends ConsumerWidget {
+class AccountScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNavigateToMyAds;
 
   const AccountScreen({super.key, this.onNavigateToMyAds});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends ConsumerState<AccountScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(propertiesProvider.notifier).syncWithServer();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profile = ref.watch(userProfileProvider);
-    final favCount = ref.watch(favoritesListProvider).length;
-    final myAdsCount = ref.watch(propertiesProvider).where((p) => p.isUserPosted).length;
+    final favCount = profile.isLoggedIn ? ref.watch(favoritesListProvider).length : 0;
+    final cleanUserPhone = profile.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final allUserAds = ref.watch(propertiesProvider).where((p) {
+      if (!profile.isLoggedIn) return false;
+
+      // 1. Strict primary match: Match by Google email
+      final hasProfileEmail = profile.email.trim().isNotEmpty;
+      final hasAgentEmail = p.agent.email.trim().isNotEmpty;
+
+      if (hasProfileEmail && hasAgentEmail) {
+        return p.agent.email.trim().toLowerCase() == profile.email.trim().toLowerCase();
+      }
+
+      // 2. Secondary match: Match by phone ONLY IF email does not belong to someone else
+      if (cleanUserPhone.length >= 10) {
+        if (hasProfileEmail && hasAgentEmail && p.agent.email.trim().toLowerCase() != profile.email.trim().toLowerCase()) {
+          return false;
+        }
+        final userSuffix = cleanUserPhone.substring(cleanUserPhone.length - 10);
+        final cleanContact = (p.contactPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+        final cleanAgentPhone = p.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cleanContact.length >= 10 && cleanContact.endsWith(userSuffix)) return true;
+        if (cleanAgentPhone.length >= 10 && cleanAgentPhone.endsWith(userSuffix)) return true;
+      }
+
+      return false;
+    }).toList();
+
+    final myTotalCount = allUserAds.length;
+    final myApprovedCount = allUserAds.where((p) => p.status.toLowerCase() == 'active' || p.status.toLowerCase() == 'published').length;
+    final myPendingCount = allUserAds.where((p) => p.status.toLowerCase() == 'pending').length;
+    final myRejectedCount = allUserAds.where((p) => p.status.toLowerCase() == 'rejected').length;
+
     final currentLocale = ref.watch(localeProvider);
     final isTamil = currentLocale.languageCode == 'ta';
 
@@ -54,7 +98,9 @@ class AccountScreen extends ConsumerWidget {
           const SizedBox(width: 6),
         ],
       ),
-      body: SingleChildScrollView(
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(propertiesProvider.notifier).syncWithServer(),
+        child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
         child: Column(
@@ -197,23 +243,17 @@ class AccountScreen extends ConsumerWidget {
                   if (profile.isLoggedIn) ...[
                     const SizedBox(height: 8),
                     InkWell(
-                      onTap: () {
-                        ref.read(userProfileProvider.notifier).updateProfile(
-                          profile.copyWith(
-                            name: 'விருந்தினர் (Guest)',
-                            phone: '',
-                            email: '',
-                            isVerified: false,
-                            isLoggedIn: false,
-                          ),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('கணக்கிலிருந்து வெளியேறினீர்கள் (Signed Out)'),
-                            behavior: SnackBarBehavior.floating,
-                            backgroundColor: AppColors.textPrimary,
-                          ),
-                        );
+                      onTap: () async {
+                        await ref.read(userProfileProvider.notifier).logout();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('கணக்கிலிருந்து வெற்றிகரமாக வெளியேறினீர்கள் (Signed Out)'),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: AppColors.textPrimary,
+                            ),
+                          );
+                        }
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
@@ -229,7 +269,7 @@ class AccountScreen extends ConsumerWidget {
                             Icon(Icons.logout_rounded, color: AppColors.error, size: 16),
                             SizedBox(width: 8),
                             Text(
-                              'கணக்கிலிருந்து வெளியேறு (Sign Out)',
+                              'வெளியேறு (Sign Out)',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -285,7 +325,7 @@ class AccountScreen extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // 2. Activity Section
             Text('My Real Estate Activity', style: AppTextStyles.h4),
@@ -294,52 +334,112 @@ class AccountScreen extends ConsumerWidget {
               _buildSettingsTile(
                 icon: Icons.holiday_village_outlined,
                 title: 'My Property Listings',
-                subtitle: '$myAdsCount active & pending ads',
-                badge: '$myAdsCount',
+                subtitle: profile.isLoggedIn
+                    ? 'Total: $myTotalCount (✅ $myApprovedCount Live • ⏳ $myPendingCount Pending • ❌ $myRejectedCount Rejected)'
+                    : '0 active & pending ads (உள்நுழையவும்)',
+                badge: (profile.isLoggedIn && myTotalCount > 0) ? '$myTotalCount' : null,
                 onTap: () {
-                  if (onNavigateToMyAds != null) {
-                    onNavigateToMyAds!();
+                  if (profile.isLoggedIn) {
+                    if (widget.onNavigateToMyAds != null) {
+                      widget.onNavigateToMyAds!();
+                    }
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LoginScreen(
+                          onLoginSuccess: () {
+                            if (widget.onNavigateToMyAds != null) {
+                              widget.onNavigateToMyAds!();
+                            }
+                          },
+                        ),
+                      ),
+                    );
                   }
                 },
               ),
               _buildSettingsTile(
                 icon: Icons.favorite_border_rounded,
                 title: 'Favorite Properties',
-                subtitle: '$favCount saved in wishlist',
-                badge: '$favCount',
+                subtitle: profile.isLoggedIn ? '$favCount saved in wishlist' : '0 saved in wishlist (விருப்பப்பட்டியல்)',
+                badge: (profile.isLoggedIn && favCount > 0) ? '$favCount' : null,
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                  );
+                  if (profile.isLoggedIn) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  }
                 },
               ),
               _buildSettingsTile(
                 icon: Icons.contact_phone_rounded,
                 iconColor: const Color(0xFFD97706),
                 title: 'என் விளம்பரங்களை பார்த்தவர்கள் (My Leads)',
-                subtitle: 'யார் உங்கள் தொடர்பு எண்ணை பார்த்தார்கள்?',
+                subtitle: profile.isLoggedIn ? 'யார் உங்கள் தொடர்பு எண்ணை பார்த்தார்கள்?' : 'உள்நுழைந்து லீட்ஸ்களை பார்க்கவும்',
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 0),
-                    ),
-                  );
+                  if (profile.isLoggedIn) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 0),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  }
                 },
               ),
               _buildSettingsTile(
                 icon: Icons.history_rounded,
                 iconColor: const Color(0xFF0284C7),
                 title: 'நான் பார்த்த தொடர்புகள் (Unlocked Contacts)',
-                subtitle: 'நீங்கள் அன்லாக் செய்த உரிமையாளர் விவரங்கள்',
+                subtitle: profile.isLoggedIn ? 'நீங்கள் அன்லாக் செய்த உரிமையாளர் விவரங்கள்' : 'உள்நுழைந்து விவரங்களை பார்க்கவும்',
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 1),
-                    ),
-                  );
+                  if (profile.isLoggedIn) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserLeadsAndActivitiesScreen(initialTabIndex: 1),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  }
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.mark_email_unread_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'தொடர்பு கோரிக்கைகள் (Requests)',
+                subtitle: 'உடனுக்குடன் கோரிக்கை ஒப்புதல் & ஏற்பு',
+                badge: (profile.isLoggedIn && ref.watch(userRequestsProvider).received.where((r) => r.isPending).isNotEmpty)
+                    ? '${ref.watch(userRequestsProvider).received.where((r) => r.isPending).length}'
+                    : null,
+                onTap: () {
+                  if (profile.isLoggedIn) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UserRequestsScreen()),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  }
                 },
               ),
               _buildSettingsTile(
@@ -508,101 +608,9 @@ class AccountScreen extends ConsumerWidget {
             ]),
 
             const SizedBox(height: 24),
-
-            // 5. Backend Server & Architecture
-            Text('Server & Production Architecture', style: AppTextStyles.h4),
-            const SizedBox(height: 10),
-            _buildGroupedCard([
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: (ApiConfig.instance.isOnlineMode ? AppColors.primary : AppColors.accentGold).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.dns_rounded,
-                    color: ApiConfig.instance.isOnlineMode ? AppColors.primary : AppColors.accentGold,
-                    size: 20,
-                  ),
-                ),
-                title: const Text('Backend API Server', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(
-                  ApiConfig.instance.isOnlineMode
-                      ? 'Live REST API: ${ApiConfig.instance.serverUrl}'
-                      : 'Offline Cache Active (Ready for Server Host)',
-                  style: AppTextStyles.bodySmall,
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: ApiConfig.instance.isOnlineMode ? AppColors.primaryLight : AppColors.accentGoldLight,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: ApiConfig.instance.isOnlineMode ? AppColors.primary : AppColors.accentGold,
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    ApiConfig.instance.isOnlineMode ? 'ONLINE API' : 'OFFLINE',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: ApiConfig.instance.isOnlineMode ? AppColors.primary : AppColors.accentGold,
-                    ),
-                  ),
-                ),
-                onTap: () => _showServerConfigDialog(context, ref),
-              ),
-              const Divider(height: 1, color: AppColors.borderLight),
-              _buildSettingsTile(
-                icon: Icons.sync_rounded,
-                iconColor: AppColors.primary,
-                title: 'Sync with Remote Server',
-                subtitle: 'Push/pull properties with configured endpoint',
-                onTap: () async {
-                  final synced = await ref.read(propertiesProvider.notifier).syncWithServer();
-                  if (context.mounted) {
-                    _showToast(
-                      context,
-                      synced
-                          ? 'Synchronized with ${ApiConfig.instance.serverUrl} successfully!'
-                          : 'Offline Mode: Served from fast local cache.',
-                    );
-                  }
-                },
-                isLast: true,
-              ),
-            ]),
-
-            const SizedBox(height: 24),
-
-            // 6. Demo Data Management (Reset Data)
-            Text('Demo Controls', style: AppTextStyles.h4),
-            const SizedBox(height: 10),
-            _buildGroupedCard([
-              _buildSettingsTile(
-                icon: Icons.restart_alt_rounded,
-                iconColor: AppColors.warning,
-                title: 'Reset Demo Data',
-                subtitle: 'Restore 22 default properties, chats, and ads',
-                onTap: () => _confirmResetDemoData(context, ref),
-              ),
-              _buildSettingsTile(
-                icon: Icons.logout_rounded,
-                iconColor: AppColors.error,
-                title: 'Log Out',
-                subtitle: 'End current demo session',
-                onTap: () {
-                  _showToast(context, 'Demo session active (Offline Demo Mode)');
-                },
-                isLast: true,
-              ),
-            ]),
           ],
         ),
+      ),
       ),
     );
   }
@@ -798,174 +806,5 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
-
-  void _confirmResetDemoData(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Demo Data?'),
-        content: const Text(
-          'This will reset all listings, chats, and favorites back to the pristine 22 seed properties in Tamil Nadu.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await ref.read(propertiesProvider.notifier).resetAllData();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Demo data restored to initial seed state!'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: AppColors.primary,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Reset All Data'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showServerConfigDialog(BuildContext context, WidgetRef ref) {
-    final urlController = TextEditingController(text: ApiConfig.instance.serverUrl);
-    bool isOnline = ApiConfig.instance.isOnlineMode;
-    String? pingMessage = ApiConfig.instance.lastPingStatus;
-    bool isTesting = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.dns_rounded, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('Server Configuration'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tenkasi Dreams Land is architected to work 100% offline or immediately connect to your production REST backend.',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Live REST Server Mode', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: Text(
-                    isOnline ? 'Active: Syncing with server' : 'Offline: Local database storage',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  value: isOnline,
-                  activeThumbColor: AppColors.primary,
-                  onChanged: (val) {
-                    setDialogState(() => isOnline = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-                const Text('Server API URL', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: urlController,
-                  decoration: const InputDecoration(
-                    hintText: 'http://127.0.0.1:8000/api',
-                    prefixIcon: Icon(Icons.link_rounded, size: 18),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Ping status card
-                if (pingMessage != null)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-                    ),
-                    child: Text(
-                      pingMessage!,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.primaryDark),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: isTesting
-                      ? null
-                      : () async {
-                          setDialogState(() {
-                            isTesting = true;
-                            pingMessage = 'Testing server connection...';
-                          });
-                          await ApiConfig.instance.setServerUrl(urlController.text.trim());
-                          await ApiConfig.instance.testConnection();
-                          setDialogState(() {
-                            isTesting = false;
-                            pingMessage = ApiConfig.instance.lastPingStatus;
-                          });
-                        },
-                  icon: isTesting
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.network_ping_rounded, size: 16),
-                  label: const Text('Test Connection (Ping)'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 38),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await ApiConfig.instance.setServerUrl(urlController.text.trim());
-                await ApiConfig.instance.setOnlineMode(isOnline);
-                if (isOnline) {
-                  await ref.read(propertiesProvider.notifier).syncWithServer();
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        isOnline
-                            ? 'Live Server Mode Enabled: ${urlController.text.trim()}'
-                            : 'Offline Cache Mode Enabled',
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Save & Apply'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
+

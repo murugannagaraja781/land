@@ -29,14 +29,18 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupLandCalculator();
 
-  // Background Auto-Polling for Real-Time User Posts & Live Users (every 10 seconds)
+  if (AppState.token) {
+    initRealtimeAdminStream();
+  }
+
+  // Background Fast Auto-Polling for Real-Time User Posts & Live Users (every 2 seconds fallback for instant arrival)
   setInterval(async () => {
     if (AppState.token) {
       await fetchNotifications();
       await fetchProperties(true);
       await loadLiveUsers(true);
     }
-  }, 10000);
+  }, 2000);
 });
 
 /* ==================== AUTHENTICATION ==================== */
@@ -89,6 +93,7 @@ async function handleLogin(e) {
       localStorage.setItem('tk_admin_user', JSON.stringify(data.user));
       showToast(data.message || 'Super Admin உள்நுழைவு வெற்றிகரமாக முடிந்தது!', 'success');
       showDashboardView();
+      initRealtimeAdminStream();
       loadDashboardData();
     } else {
       showToast(data.message || 'தவறான உள்நுழைவு விபரம்!', 'error');
@@ -99,6 +104,11 @@ async function handleLogin(e) {
 }
 
 function handleLogout() {
+  stopContinuousRing();
+  if (adminEventSource) {
+    try { adminEventSource.close(); } catch(e) {}
+    adminEventSource = null;
+  }
   AppState.token = null;
   AppState.user = null;
   localStorage.removeItem('tk_admin_token');
@@ -109,6 +119,7 @@ function handleLogout() {
 
 /* ==================== DATA LOADING ==================== */
 async function loadDashboardData() {
+  initRealtimeAdminStream();
   await Promise.all([
     fetchStats(),
     fetchProperties(),
@@ -137,20 +148,25 @@ async function fetchStats() {
 }
 
 function renderStats(stats) {
-  document.getElementById('statTotalAds').innerText = stats.totalProperties || 0;
-  document.getElementById('statActiveAds').innerText = stats.activeProperties || 0;
-  document.getElementById('statPendingAds').innerText = stats.pendingProperties || 0;
-  document.getElementById('statRequirements').innerText = stats.buyerRequirementsTotal || 0;
-  document.getElementById('statViews').innerText = stats.totalViews || 0;
+  const setTxt = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = (val !== undefined && val !== null) ? val : 0;
+  };
+
+  setTxt('statTotalAds', stats.totalProperties);
+  setTxt('statActiveAds', stats.activeProperties);
+  setTxt('statPendingAds', stats.pendingProperties);
+  setTxt('statRequirements', stats.buyerRequirementsTotal);
+  setTxt('statViews', stats.totalViews);
 
   // Category counts
   if (stats.categories) {
-    document.getElementById('catCountHouse').innerText = stats.categories.House || 0;
-    document.getElementById('catCountLand').innerText = stats.categories.Land || 0;
-    document.getElementById('catCountFarmland').innerText = stats.categories.Farmland || 0;
-    document.getElementById('catCountShop').innerText = stats.categories.Shop || 0;
-    document.getElementById('catCountApartment').innerText = stats.categories.Apartment || 0;
-    document.getElementById('catCountRental').innerText = stats.categories.Rental || 0;
+    setTxt('catCountHouse', stats.categories.House);
+    setTxt('catCountLand', stats.categories.Land);
+    setTxt('catCountFarmland', stats.categories.Farmland);
+    setTxt('catCountShop', stats.categories.Shop);
+    setTxt('catCountApartment', stats.categories.Apartment);
+    setTxt('catCountRental', stats.categories.Rental);
   }
 }
 
@@ -171,7 +187,7 @@ function calculateLocalStats() {
     else if (type.includes('farm') || type.includes('thottam')) cats.Farmland++;
     else if (type.includes('shop') || type.includes('commercial')) cats.Shop++;
     else if (type.includes('apartment') || type.includes('flat')) cats.Apartment++;
-    else if (p.isRental || type.includes('rental')) cats.Rental++;
+    else if (p.isRental || type.includes('rental') || type.includes('lease')) cats.Rental++;
     else cats.House++;
   });
 
@@ -181,7 +197,7 @@ function calculateLocalStats() {
     pendingProperties: pending,
     soldProperties: sold,
     totalViews: views,
-    buyerRequirementsTotal: AppState.requirements.length,
+    buyerRequirementsTotal: AppState.requirements ? AppState.requirements.length : 0,
     categories: cats
   });
 }
@@ -205,7 +221,8 @@ async function fetchProperties(isSilent = false) {
 
 function renderPropertiesTable() {
   const tbody = document.getElementById('propertiesTableBody');
-  if (!tbody) return;
+  const overviewTbody = document.getElementById('overviewPropertiesTableBody');
+  if (!tbody && !overviewTbody) return;
 
   let filtered = AppState.properties;
 
@@ -231,104 +248,265 @@ function renderPropertiesTable() {
     filtered = filtered.filter(p => AppState.activeAccess === 'paid' ? !!p.isPremium : !p.isPremium);
   }
 
-  if (AppState.searchQuery.trim()) {
+  if (AppState.searchQuery && AppState.searchQuery.trim()) {
     const q = AppState.searchQuery.trim().toLowerCase();
     filtered = filtered.filter(p => 
       (p.title || '').toLowerCase().includes(q) ||
       (p.location || '').toLowerCase().includes(q) ||
       (p.city || '').toLowerCase().includes(q) ||
       (p.id || '').toLowerCase().includes(q) ||
-      (p.agent && (p.agent.name || '').toLowerCase().includes(q))
+      (p.agent && (p.agent.name || '').toLowerCase().includes(q)) ||
+      (p.sellerName && p.sellerName.toLowerCase().includes(q)) ||
+      (p.sellerPhone && p.sellerPhone.includes(q))
     );
   }
 
-  if (filtered.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="8" style="text-align:center; padding: 40px; color: var(--text-muted);">
-          விளம்பரங்கள் எதுவும் கிடைக்கவில்லை (No properties found).
-        </td>
-      </tr>
-    `;
-    return;
+  if (tbody) {
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align:center; padding: 40px; color: var(--text-muted);">
+            விளம்பரங்கள் எதுவும் கிடைக்கவில்லை (No properties found).
+          </td>
+        </tr>
+      `;
+    } else {
+      tbody.innerHTML = filtered.map(p => {
+        const formattedPrice = formatTamilPrice(p.price, p.propertyType);
+        const catBadgeIcon = getCategoryIcon(p.propertyType);
+        const isPending = (p.status || '').toLowerCase() === 'pending';
+
+        const thumbImg = (p.imageUrls && p.imageUrls.length > 0)
+          ? p.imageUrls[0]
+          : (p.imageUrl || (p.customImageBase64 ? `data:image/jpeg;base64,${p.customImageBase64}` : ''));
+
+        return `
+          <tr class="${isPending ? 'row-pending' : ''}">
+            <td>
+              <div class="prop-cell">
+                ${thumbImg 
+                  ? `<img src="${thumbImg}" class="prop-thumb" style="object-fit:cover; border-radius:8px; width:44px; height:44px; border:1px solid rgba(255,255,255,0.15);" alt="Thumb" onerror="this.outerHTML='<div class=\\'prop-thumb\\'>${catBadgeIcon}</div>'">`
+                  : `<div class="prop-thumb">${catBadgeIcon}</div>`
+                }
+                <div>
+                  <div class="prop-meta-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</div>
+                  <div class="prop-meta-location">📍 ${escapeHtml(p.location || p.city || (AppState.envConfig ? AppState.envConfig.DEFAULT_CITY : 'Tenkasi'))}</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                    ID: ${p.id} ${p.isUserPosted ? '<span style="color:#f59e0b; font-weight:700;">• பயனர் விளம்பரம்</span>' : ''}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge badge-category">${catBadgeIcon} ${escapeHtml(p.propertyType || 'House')}</span>
+              ${p.posterType ? `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${escapeHtml(p.posterType)}</div>` : ''}
+            </td>
+            <td>
+              <div class="price-text">${formattedPrice}</div>
+              <div style="font-size:11px; color:var(--text-muted);">${p.areaSqFt ? p.areaSqFt.toLocaleString() + ' Sq.Ft' : ''}</div>
+            </td>
+            <td>
+              <div>${escapeHtml(p.sellerName || (p.agent ? p.agent.name : 'Direct Owner'))}</div>
+              <div style="font-size:11px; color:var(--accent-primary);">${escapeHtml(p.sellerPhone || p.contactPhone || (p.agent ? p.agent.phone : ''))}</div>
+            </td>
+            <td>
+              <button class="badge ${p.isVerified ? 'badge-active' : 'badge-pending'}" style="cursor:pointer; border:none;" onclick="togglePropertyVerification('${p.id}')">
+                ${p.isVerified ? '✓ சரிபார்க்கப்பட்டது' : '⌛ சரிபார்க்கவும்'}
+              </button>
+            </td>
+            <td>
+              <button class="badge ${p.isPremium ? 'badge-gold' : 'badge-emerald'}" 
+                      style="cursor:pointer; border:none; padding:4px 9px; font-weight:700; font-size:11.5px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" 
+                      onclick="togglePropertyPremium('${p.id}')"
+                      title="க்ளிக் செய்து இலவசம் அல்லது கட்டணமாக மாற்றலாம்">
+                ${p.isPremium ? '💎 கட்டணம் (Paid)' : '🟢 இலவசம் (Free)'}
+              </button>
+              <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">
+                ${p.isPremium ? '₹10 பேவால்' : 'நேரடி தொடர்பு'}
+              </div>
+            </td>
+            <td>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <select class="select-filter" style="padding:4px 8px; font-size:12px;" onchange="updatePropertyStatus('${p.id}', this.value)">
+                  <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active (நேரலை)</option>
+                  <option value="pending" ${p.status === 'pending' ? 'selected' : ''}>Pending (காத்திருப்பு)</option>
+                  <option value="sold" ${p.status === 'sold' ? 'selected' : ''}>Sold (விற்பனையானது)</option>
+                </select>
+                ${isPending ? `<button class="btn btn-emerald" style="padding:3px 8px; font-size:11px; font-weight:700; border-radius:4px;" onclick="approveProperty('${p.id}')">✓ அப்ரூவ் செய்</button>` : ''}
+              </div>
+            </td>
+            <td>
+              <div class="action-btn-group">
+                <button class="btn-icon" style="background:rgba(59,130,246,0.15); color:#60a5fa;" title="முழு விவரங்களை பார் (Inspect)" onclick="openPropertyInspectModal('${p.id}')">👁️</button>
+                <button class="btn-icon btn-icon-gold" title="Edit Property" onclick="openEditPropertyModal('${p.id}')">✏️</button>
+                <button class="btn-icon btn-icon-emerald" title="Toggle Featured" onclick="togglePropertyFeatured('${p.id}')">${p.isFeatured ? '★' : '☆'}</button>
+                <button class="btn-icon btn-icon-danger" title="Delete Property" onclick="confirmDeleteProperty('${p.id}')">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
   }
 
-  tbody.innerHTML = filtered.map(p => {
-    const formattedPrice = formatTamilPrice(p.price, p.propertyType);
-    const catBadgeIcon = getCategoryIcon(p.propertyType);
-    const isPending = (p.status || '').toLowerCase() === 'pending';
+  if (overviewTbody) {
+    if (AppState.properties.length === 0) {
+      overviewTbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center; padding: 30px; color: var(--text-muted);">
+            விளம்பரங்கள் எதுவும் கிடைக்கவில்லை (No properties found).
+          </td>
+        </tr>
+      `;
+    } else {
+      overviewTbody.innerHTML = AppState.properties.slice(0, 10).map(p => {
+        const formattedPrice = formatTamilPrice(p.price, p.propertyType);
+        const catBadgeIcon = getCategoryIcon(p.propertyType);
+        const isPending = (p.status || '').toLowerCase() === 'pending';
+        const thumbImg = (p.imageUrls && p.imageUrls.length > 0)
+          ? p.imageUrls[0]
+          : (p.imageUrl || (p.customImageBase64 ? `data:image/jpeg;base64,${p.customImageBase64}` : ''));
 
-    return `
-      <tr class="${isPending ? 'row-pending' : ''}">
-        <td>
-          <div class="prop-cell">
-            <div class="prop-thumb">${catBadgeIcon}</div>
-            <div>
-              <div class="prop-meta-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</div>
-              <div class="prop-meta-location">📍 ${escapeHtml(p.location || p.city || (AppState.envConfig ? AppState.envConfig.DEFAULT_CITY : 'Tenkasi'))}</div>
-              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-                ID: ${p.id} ${p.isUserPosted ? '<span style="color:#f59e0b; font-weight:700;">• பயனர் விளம்பரம்</span>' : ''}
+        return `
+          <tr class="${isPending ? 'row-pending' : ''}">
+            <td>
+              <div class="prop-cell">
+                ${thumbImg 
+                  ? `<img src="${thumbImg}" class="prop-thumb" style="object-fit:cover; border-radius:8px; width:44px; height:44px; border:1px solid rgba(255,255,255,0.15);" alt="Thumb" onerror="this.outerHTML='<div class=\\'prop-thumb\\'>${catBadgeIcon}</div>'">`
+                  : `<div class="prop-thumb">${catBadgeIcon}</div>`
+                }
+                <div>
+                  <div class="prop-meta-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</div>
+                  <div class="prop-meta-location">📍 ${escapeHtml(p.location || p.city || 'Tenkasi')}</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                    ID: ${p.id} ${p.isUserPosted ? '<span style="color:#f59e0b; font-weight:700;">• பயனர் விளம்பரம்</span>' : ''}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </td>
-        <td>
-          <span class="badge badge-category">${catBadgeIcon} ${escapeHtml(p.propertyType || 'House')}</span>
-          ${p.posterType ? `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${escapeHtml(p.posterType)}</div>` : ''}
-        </td>
-        <td>
-          <div class="price-text">${formattedPrice}</div>
-          <div style="font-size:11px; color:var(--text-muted);">${p.areaSqFt ? p.areaSqFt.toLocaleString() + ' Sq.Ft' : ''}</div>
-        </td>
-        <td>
-          <div>${escapeHtml(p.sellerName || (p.agent ? p.agent.name : 'Direct Owner'))}</div>
-          <div style="font-size:11px; color:var(--accent-primary);">${escapeHtml(p.sellerPhone || p.contactPhone || (p.agent ? p.agent.phone : ''))}</div>
-        </td>
-        <td>
-          <button class="badge ${p.isVerified ? 'badge-active' : 'badge-pending'}" style="cursor:pointer; border:none;" onclick="togglePropertyVerification('${p.id}')">
-            ${p.isVerified ? '✓ சரிபார்க்கப்பட்டது' : '⌛ சரிபார்க்கவும்'}
-          </button>
-        </td>
-        <td>
-          <button class="badge ${p.isPremium ? 'badge-gold' : 'badge-emerald'}" 
-                  style="cursor:pointer; border:none; padding:4px 9px; font-weight:700; font-size:11.5px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" 
-                  onclick="togglePropertyPremium('${p.id}')"
-                  title="க்ளிக் செய்து இலவசம் அல்லது கட்டணமாக மாற்றலாம்">
-            ${p.isPremium ? '💎 கட்டணம் (Paid)' : '🟢 இலவசம் (Free)'}
-          </button>
-          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">
-            ${p.isPremium ? '₹10 பேவால்' : 'நேரடி தொடர்பு'}
-          </div>
-        </td>
-        <td>
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <select class="select-filter" style="padding:4px 8px; font-size:12px;" onchange="updatePropertyStatus('${p.id}', this.value)">
-              <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active (நேரலை)</option>
-              <option value="pending" ${p.status === 'pending' ? 'selected' : ''}>Pending (காத்திருப்பு)</option>
-              <option value="sold" ${p.status === 'sold' ? 'selected' : ''}>Sold (விற்பனையானது)</option>
-            </select>
-            ${isPending ? `<button class="btn btn-emerald" style="padding:3px 8px; font-size:11px; font-weight:700; border-radius:4px;" onclick="approveProperty('${p.id}')">✓ அப்ரூவ் செய்</button>` : ''}
-          </div>
-        </td>
-        <td>
-          <div class="action-btn-group">
-            <button class="btn-icon" style="background:rgba(59,130,246,0.15); color:#60a5fa;" title="முழு விவரங்களை பார் (Inspect)" onclick="openPropertyInspectModal('${p.id}')">👁️</button>
-            <button class="btn-icon btn-icon-gold" title="Edit Property" onclick="openEditPropertyModal('${p.id}')">✏️</button>
-            <button class="btn-icon btn-icon-emerald" title="Toggle Featured" onclick="togglePropertyFeatured('${p.id}')">${p.isFeatured ? '★' : '☆'}</button>
-            <button class="btn-icon btn-icon-danger" title="Delete Property" onclick="confirmDeleteProperty('${p.id}')">🗑️</button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+            </td>
+            <td>
+              <span class="badge badge-category">${catBadgeIcon} ${escapeHtml(p.propertyType || 'House')}</span>
+            </td>
+            <td>
+              <div class="price-text">${formattedPrice}</div>
+              <div style="font-size:11px; color:var(--text-muted);">${p.areaSqFt ? p.areaSqFt.toLocaleString() + ' Sq.Ft' : ''}</div>
+            </td>
+            <td>
+              <div>${escapeHtml(p.sellerName || 'Direct Owner')}</div>
+              <div style="font-size:11px; color:var(--accent-primary);">${escapeHtml(p.sellerPhone || p.contactPhone || '')}</div>
+            </td>
+            <td>
+              <span class="badge ${p.status === 'active' ? 'badge-active' : (p.status === 'pending' ? 'badge-pending' : 'badge-gold')}">
+                ${p.status === 'active' ? '✓ நேரலை' : (p.status === 'pending' ? '⏳ காத்திருப்பு' : 'விற்பனையானது')}
+              </span>
+            </td>
+            <td style="text-align: right;">
+              <div class="action-btn-group" style="justify-content: flex-end;">
+                <button class="btn-icon" style="background:rgba(59,130,246,0.15); color:#60a5fa;" title="Inspect" onclick="openPropertyInspectModal('${p.id}')">👁️</button>
+                <button class="btn-icon btn-icon-gold" title="Edit" onclick="openEditPropertyModal('${p.id}')">✏️</button>
+                <button class="btn-icon btn-icon-danger" title="Delete" onclick="confirmDeleteProperty('${p.id}')">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
 }
 
 /* ==================== ADD / EDIT PROPERTY MODAL ==================== */
+let adminUploadedImages = [];
+
+function handleAdminImageUpload(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  const promises = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith('image/')) continue;
+    promises.push(readFileAsBase64(file));
+  }
+
+  Promise.all(promises).then(base64s => {
+    adminUploadedImages = [...adminUploadedImages, ...base64s];
+    renderAdminImagePreviews();
+    event.target.value = '';
+  }).catch(err => {
+    console.error('Error reading images:', err);
+    showToast('படங்களை ஏற்றுவதில் பிழை ஏற்பட்டது!', 'error');
+  });
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAdminImagePreviews() {
+  const grid = document.getElementById('adminPropImagePreviewGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  adminUploadedImages.forEach((src, idx) => {
+    const div = document.createElement('div');
+    div.style.position = 'relative';
+    div.style.width = '100%';
+    div.style.height = '80px';
+    div.style.borderRadius = '8px';
+    div.style.overflow = 'hidden';
+    div.style.border = '1px solid rgba(212,175,55,0.4)';
+    div.style.background = '#0a0a0c';
+
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+
+    const rmBtn = document.createElement('button');
+    rmBtn.type = 'button';
+    rmBtn.innerHTML = '✕';
+    rmBtn.style.position = 'absolute';
+    rmBtn.style.top = '2px';
+    rmBtn.style.right = '2px';
+    rmBtn.style.background = 'rgba(239, 68, 68, 0.9)';
+    rmBtn.style.color = '#fff';
+    rmBtn.style.border = 'none';
+    rmBtn.style.borderRadius = '50%';
+    rmBtn.style.width = '20px';
+    rmBtn.style.height = '20px';
+    rmBtn.style.cursor = 'pointer';
+    rmBtn.style.fontSize = '11px';
+    rmBtn.style.display = 'flex';
+    rmBtn.style.alignItems = 'center';
+    rmBtn.style.justifyContent = 'center';
+    rmBtn.onclick = (e) => {
+      e.stopPropagation();
+      adminUploadedImages.splice(idx, 1);
+      renderAdminImagePreviews();
+    };
+
+    div.appendChild(img);
+    div.appendChild(rmBtn);
+    grid.appendChild(div);
+  });
+}
+
 function openAddPropertyModal() {
   AppState.editingPropertyId = null;
   document.getElementById('propertyModalTitle').innerText = '➕ புதிய விளம்பரம் சேர்க்க (Add New Property)';
   document.getElementById('propertyForm').reset();
   document.getElementById('propIdField').value = '';
+  if (document.getElementById('propSellerName')) {
+    document.getElementById('propSellerName').value = 'Super Admin';
+  }
+  adminUploadedImages = [];
+  renderAdminImagePreviews();
   handleCategoryChange('House');
   document.getElementById('propertyModal').classList.add('show');
 }
@@ -342,6 +520,9 @@ function openEditPropertyModal(id) {
   
   document.getElementById('propIdField').value = p.id;
   document.getElementById('propTitle').value = p.title || '';
+  if (document.getElementById('propSellerName')) {
+    document.getElementById('propSellerName').value = p.sellerName || (p.agent ? p.agent.name : 'Super Admin');
+  }
   document.getElementById('propType').value = p.propertyType || 'House';
   document.getElementById('propPrice').value = p.price || '';
   document.getElementById('propAreaSqFt').value = p.areaSqFt || '';
@@ -355,8 +536,16 @@ function openEditPropertyModal(id) {
   document.getElementById('propStatus').value = p.status || 'active';
   document.getElementById('propIsVerified').checked = !!p.isVerified;
   document.getElementById('propIsFeatured').checked = !!p.isFeatured;
+  if (document.getElementById('propIsPremium')) {
+    document.getElementById('propIsPremium').checked = !!p.isPremium;
+  }
   document.getElementById('propBankLoan').checked = !!p.isBankLoanAvailable;
   document.getElementById('propPriceNegotiable').checked = p.isPriceNegotiable !== false;
+
+  adminUploadedImages = Array.isArray(p.imageUrls) && p.imageUrls.length > 0
+    ? [...p.imageUrls]
+    : (p.imageUrl ? [p.imageUrl] : (p.customImageBase64 ? [p.customImageBase64] : []));
+  renderAdminImagePreviews();
 
   handleCategoryChange(p.propertyType || 'House');
 
@@ -555,16 +744,21 @@ async function handlePropertySubmit(e) {
     areaSqFt: parseInt(document.getElementById('propAreaSqFt').value) || 0,
     location: document.getElementById('propLocation').value.trim(),
     city: document.getElementById('propCity').value.trim(),
+    sellerName: document.getElementById('propSellerName') ? document.getElementById('propSellerName').value.trim() : 'Super Admin',
     posterType: document.getElementById('propPosterType').value,
     contactPhone: document.getElementById('propContactPhone').value.trim(),
+    sellerPhone: document.getElementById('propContactPhone').value.trim(),
     landmark: document.getElementById('propLandmark').value.trim(),
     facing: document.getElementById('propFacing').value,
     description: document.getElementById('propDescription').value.trim(),
     status: document.getElementById('propStatus').value || 'active',
     isVerified: document.getElementById('propIsVerified') ? document.getElementById('propIsVerified').checked : true,
     isFeatured: document.getElementById('propIsFeatured') ? document.getElementById('propIsFeatured').checked : false,
+    isPremium: document.getElementById('propIsPremium') ? document.getElementById('propIsPremium').checked : false,
     isBankLoanAvailable: document.getElementById('propBankLoan') ? document.getElementById('propBankLoan').checked : false,
     isPriceNegotiable: document.getElementById('propPriceNegotiable') ? document.getElementById('propPriceNegotiable').checked : true,
+    imageUrls: adminUploadedImages,
+    customImageBase64: adminUploadedImages.length > 0 ? adminUploadedImages[0] : null,
   };
 
   if (document.getElementById('propBedrooms')) payload.bedrooms = parseInt(document.getElementById('propBedrooms').value) || null;
@@ -644,6 +838,31 @@ async function togglePropertyFeatured(id) {
   }
 }
 
+async function togglePropertyPremium(id) {
+  const p = AppState.properties.find(item => item.id == id);
+  if (!p) return;
+  const newPremium = !p.isPremium;
+
+  try {
+    const res = await fetch(`${API_BASE}/properties.php?action=toggle_premium`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, isPremium: newPremium })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      p.isPremium = newPremium;
+      showToast(newPremium ? '💎 பிரீமியம் / கட்டண விளம்பரமாக மாற்றப்பட்டது!' : '🟢 இலவச விளம்பரமாக மாற்றப்பட்டது!', 'success');
+      renderPropertiesTable();
+      fetchStats();
+    } else {
+      showToast(data.message || 'மாற்ற முடியவில்லை', 'error');
+    }
+  } catch (err) {
+    showToast('API பிழை: ' + err.message, 'error');
+  }
+}
+
 async function updatePropertyStatus(id, newStatus) {
   try {
     await fetch(`${API_BASE}/properties.php`, {
@@ -661,13 +880,76 @@ async function updatePropertyStatus(id, newStatus) {
   }
 }
 
-/* ==================== SUPER ADMIN AD APPROVAL & NOTIFICATION ENGINE ==================== */
+/* ==================== SUPER ADMIN AD APPROVAL & CONTINUOUS RING ENGINE ==================== */
+let adminAudioCtx = null;
+let ringIntervalId = null;
+let isRinging = false;
+let soundMutedByUser = false;
+let adminEventSource = null;
+
+function getAdminAudioContext() {
+  if (!adminAudioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      adminAudioCtx = new AudioContextClass();
+    }
+  }
+  if (adminAudioCtx && adminAudioCtx.state === 'suspended') {
+    adminAudioCtx.resume().catch(() => {});
+  }
+  return adminAudioCtx;
+}
+
+// Unlock audio context on any user interaction (resolves browser autoplay policy)
+['click', 'touchstart', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    getAdminAudioContext();
+  }, { once: true });
+});
+
+function playRingToneBurst() {
+  try {
+    const ctx = getAdminAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    // High-attention dual-frequency telephone ring burst (750Hz + 950Hz)
+    const playBurst = (startTime, duration) => {
+      [750, 950].forEach(freq => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        
+        gain.gain.setValueAtTime(0.0001, startTime);
+        gain.gain.linearRampToValueAtTime(0.28, startTime + 0.04);
+        gain.gain.setValueAtTime(0.28, startTime + duration - 0.05);
+        gain.gain.linearRampToValueAtTime(0.0001, startTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      });
+    };
+
+    const now = ctx.currentTime;
+    // Ring 1 (0.38s), pause 0.16s, Ring 2 (0.38s)
+    playBurst(now, 0.38);
+    playBurst(now + 0.54, 0.38);
+  } catch (e) {
+    console.warn('Audio ring burst error:', e);
+  }
+}
+
 function playNotificationChime() {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    
+    const ctx = getAdminAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
     const playTone = (freq, startTime, duration) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -681,12 +963,121 @@ function playNotificationChime() {
       osc.start(startTime);
       osc.stop(startTime + duration);
     };
-
-    const now = ctx.currentTime;
     playTone(587.33, now, 0.25); // D5
     playTone(880.00, now + 0.18, 0.45); // A5
-  } catch (e) {
-    console.warn('Audio chime unavailable:', e);
+  } catch (e) {}
+}
+
+function startContinuousRing(desc) {
+  const banner = document.getElementById('pendingAdAlarmBanner');
+  if (banner) {
+    banner.style.display = 'block';
+    if (desc) {
+      const descEl = document.getElementById('pendingAlarmDesc');
+      if (descEl) descEl.innerText = desc;
+    }
+  }
+
+  if (isRinging) return;
+
+  isRinging = true;
+  playRingToneBurst();
+
+  if (ringIntervalId) clearInterval(ringIntervalId);
+  // Repeat every 2.4 seconds continuously until Super Admin approves or rejects ALL pending ads!
+  ringIntervalId = setInterval(() => {
+    if (!isRinging) {
+      clearInterval(ringIntervalId);
+      ringIntervalId = null;
+      return;
+    }
+    playRingToneBurst();
+  }, 2400);
+}
+
+function stopContinuousRing() {
+  isRinging = false;
+  if (ringIntervalId) {
+    clearInterval(ringIntervalId);
+    ringIntervalId = null;
+  }
+  const banner = document.getElementById('pendingAdAlarmBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+function initRealtimeAdminStream() {
+  if (adminEventSource) {
+    try { adminEventSource.close(); } catch(e) {}
+    adminEventSource = null;
+  }
+
+  if (!window.EventSource) return;
+
+  try {
+    adminEventSource = new EventSource(`${API_BASE}/events.php?user_phone=admin`);
+
+    adminEventSource.addEventListener('connected', (e) => {
+      console.log('Real-time Admin SSE Stream Connected');
+    });
+
+    adminEventSource.addEventListener('new_pending_ad', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        console.log('Real-time New Pending Ad Received:', data);
+
+        const p = (data.payload && data.payload.property) ? data.payload.property : (data.property || {});
+
+        // Immediately add to AppState.pendingProperties if not already present
+        if (p && p.id) {
+          const exists = AppState.pendingProperties.some(item => item.id == p.id);
+          if (!exists) {
+            AppState.pendingProperties.unshift(p);
+          }
+          const propExists = AppState.properties.some(item => item.id == p.id);
+          if (!propExists) {
+            AppState.properties.unshift(p);
+          }
+        }
+
+        // Immediately re-render pending approvals and start continuous ringing!
+        renderPendingApprovalsSection();
+        renderPropertiesTable();
+        updateSidebarPendingBadge();
+
+        const title = p.title || 'புதிய விளம்பரம்';
+        const price = p.price ? (' - ₹' + Number(p.price).toLocaleString('en-IN')) : '';
+        const seller = p.sellerName ? ` (${p.sellerName})` : '';
+
+        startContinuousRing(`🔔 புதிய விளம்பரம்: "${title}"${price}${seller} • அப்ரூவல் (Accept) அல்லது நிராகரிப்பு (Reject) செய்யும் வரை தொடர்ந்து ஒலிக்கும்!`);
+        showToast('🚨 புதிய விளம்பரம் வந்துள்ளது! அப்ரூவல் தேவை', 'info');
+
+        // Also fetch from server to guarantee sync
+        fetchProperties(true);
+        fetchNotifications();
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('🚨 தென்காசி கனவுகள் - புதிய விளம்பரம்!', {
+            body: `"${title}"${price} சரிபார்த்து அப்ரூவல் வழங்கவும்`,
+            icon: '../assets/images/logo.png'
+          });
+        }
+      } catch (err) {
+        console.warn('Error handling new_pending_ad SSE:', err);
+      }
+    });
+
+    adminEventSource.addEventListener('pending_ad_action_taken', (e) => {
+      try {
+        fetchProperties(true);
+        fetchNotifications();
+      } catch (err) {}
+    });
+
+    adminEventSource.onerror = () => {
+      // EventSource automatically reconnects
+    };
+  } catch (err) {
+    console.warn('Failed to initialize Admin SSE:', err);
   }
 }
 
@@ -711,18 +1102,12 @@ async function fetchNotifications() {
         }
       }
 
-      // Check if new pending ad arrived to trigger sound & desktop notification
-      if (pendingCount > AppState.lastNotifCount) {
-        playNotificationChime();
-        showToast('🔔 புதிய பயனர் விளம்பரம் வந்துள்ளது! அப்ரூவல் தேவை', 'info');
-        
-        if ('Notification' in window && Notification.permission === 'granted') {
-          const newest = AppState.notifications[0];
-          new Notification('🔔 தென்காசி கனவுகள் - புதிய விளம்பரம்!', {
-            body: newest ? newest.message : 'புதிய விளம்பரம் சரிபார்ப்பிற்காக வந்துள்ளது',
-            icon: '../assets/images/logo.png'
-          });
-        }
+      // If pendingCount > 0, start continuous ringing until Super Admin accepts/rejects
+      if (pendingCount > 0) {
+        startContinuousRing(`${pendingCount} விளம்பரங்கள் அப்ரூவலுக்காக காத்திருக்கின்றன • உடனே அப்ரூவல் (Accept) அல்லது நிராகரிப்பு (Reject) செய்யவும்.`);
+      } else {
+        // No pending ads remaining! Automatically stop continuous ring!
+        stopContinuousRing();
       }
       AppState.lastNotifCount = pendingCount;
 
@@ -843,9 +1228,11 @@ function renderPendingApprovalsSection() {
   const section = document.getElementById('pendingApprovalsSection');
   const container = document.getElementById('pendingCardsContainer');
   const dedicatedContainer = document.getElementById('pendingCardsDedicatedContainer');
+  const alarmContainer = document.getElementById('pendingAlarmCardsContainer');
   const countBadge = document.getElementById('pendingBoxBadgeCount');
   const sectionBadge = document.getElementById('pendingSectionBadgeCount');
   const sidebarBadge = document.getElementById('sidebarPendingBadge');
+  const alarmCounterBadge = document.getElementById('pendingAlarmCounterBadge');
 
   const pending = AppState.pendingProperties || [];
 
@@ -862,8 +1249,14 @@ function renderPendingApprovalsSection() {
     sectionBadge.innerText = `${pending.length} காத்திருப்பில்`;
   }
 
+  if (alarmCounterBadge) {
+    alarmCounterBadge.innerText = `${pending.length} புதிய விளம்பரம் காத்திருப்பில்`;
+  }
+
   if (pending.length === 0) {
+    stopContinuousRing();
     if (section) section.style.display = 'none';
+    if (alarmContainer) alarmContainer.innerHTML = '';
     if (dedicatedContainer) {
       dedicatedContainer.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
@@ -889,9 +1282,18 @@ function renderPendingApprovalsSection() {
     const sellerPhone = p.sellerPhone || p.contactPhone || (p.agent ? p.agent.phone : '');
     const cleanPhone = (sellerPhone || '').replace(/[^0-9]/g, '');
 
+    const thumbImg = (p.imageUrls && p.imageUrls.length > 0)
+      ? p.imageUrls[0]
+      : (p.imageUrl || (p.customImageBase64 ? `data:image/jpeg;base64,${p.customImageBase64}` : ''));
+
     return `
-      <div class="pending-card" style="border: 1px solid ${p.isPremium ? '#f59e0b' : 'rgba(255,255,255,0.08)'};">
+      <div class="pending-card" style="border: 1px solid ${p.isPremium ? '#f59e0b' : 'rgba(255,255,255,0.08)'}; background: rgba(15, 23, 42, 0.95);">
         <div>
+          ${thumbImg ? `
+            <div style="width:100%; height:130px; border-radius:8px; overflow:hidden; margin-bottom:10px; background:#000; border:1px solid rgba(255,255,255,0.1);">
+              <img src="${thumbImg}" alt="Property" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+          ` : ''}
           <div class="pending-card-top">
             <span class="pending-card-type">${catIcon} ${escapeHtml(p.propertyType || 'Land')}</span>
             <div class="pending-card-price">${formattedPrice}</div>
@@ -924,9 +1326,9 @@ function renderPendingApprovalsSection() {
 
         <div class="pending-actions-bar">
           <button class="btn-approve-action" onclick="approveProperty('${p.id}')">
-            ✓ அங்கீகரித்து நேரலையில் வெளியிடு
+            ✓ அங்கீகரித்து நேரலையில் வெளியிடு (Accept)
           </button>
-          <button class="btn-reject-action" onclick="rejectProperty('${p.id}')" title="நிராகரி">
+          <button class="btn-reject-action" onclick="rejectProperty('${p.id}')" title="நிராகரி (Reject)">
             ✕
           </button>
           <button class="btn-inspect-action" onclick="openPropertyInspectModal('${p.id}')" title="முழு விவரங்கள்">
@@ -939,6 +1341,10 @@ function renderPendingApprovalsSection() {
 
   if (container) container.innerHTML = cardsHtml;
   if (dedicatedContainer) dedicatedContainer.innerHTML = cardsHtml;
+  if (alarmContainer) alarmContainer.innerHTML = cardsHtml;
+
+  // Since pending.length > 0, start continuous ringing!
+  startContinuousRing(`${pending.length} புதிய விளம்பரங்கள் காத்திருக்கின்றன • அப்ரூவல் (Accept) அல்லது நிராகரிப்பு (Reject) செய்யும் வரை தொடர்ந்து ஒலிக்கும்.`);
 }
 
 async function togglePropertyPremium(id) {
@@ -983,10 +1389,25 @@ async function approveProperty(id) {
     });
     const data = await res.json();
     if (data.success) {
-      playNotificationChime();
       showToast('✅ விளம்பரம் வெற்றிகரமாக ஒப்புதல் அளிக்கப்பட்டு நேரலை செய்யப்பட்டது!', 'success');
+      // Immediately remove from pending properties
+      AppState.pendingProperties = AppState.pendingProperties.filter(p => p.id != id);
+      const prop = AppState.properties.find(p => p.id == id);
+      if (prop) {
+        prop.status = 'active';
+        prop.isVerified = true;
+      }
+      renderPendingApprovalsSection();
+      renderPropertiesTable();
+      updateSidebarPendingBadge();
+
+      // If no more pending properties, stop sound immediately!
+      if (AppState.pendingProperties.length === 0) {
+        stopContinuousRing();
+      }
+
       await Promise.all([
-        fetchProperties(),
+        fetchProperties(true),
         fetchNotifications(),
         fetchStats()
       ]);
@@ -1012,8 +1433,23 @@ async function rejectProperty(id) {
     const data = await res.json();
     if (data.success) {
       showToast('விளம்பரம் நிராகரிக்கப்பட்டது (Rejected)', 'info');
+      // Immediately remove from pending properties
+      AppState.pendingProperties = AppState.pendingProperties.filter(p => p.id != id);
+      const prop = AppState.properties.find(p => p.id == id);
+      if (prop) {
+        prop.status = 'rejected';
+      }
+      renderPendingApprovalsSection();
+      renderPropertiesTable();
+      updateSidebarPendingBadge();
+
+      // If no more pending properties, stop sound immediately!
+      if (AppState.pendingProperties.length === 0) {
+        stopContinuousRing();
+      }
+
       await Promise.all([
-        fetchProperties(),
+        fetchProperties(true),
         fetchNotifications(),
         fetchStats()
       ]);
@@ -1059,7 +1495,9 @@ function openPropertyInspectModal(id) {
   const posterType = p.posterType || (p.agent && p.agent.agencyName ? p.agent.agencyName : 'நேரடி உரிமையாளர் (Direct Owner)');
   const cleanPhone = (sellerPhone || '').replace(/[^0-9]/g, '');
 
-  const images = (p.imageUrls && p.imageUrls.length > 0) ? p.imageUrls : [];
+  const images = (p.imageUrls && p.imageUrls.length > 0) 
+    ? p.imageUrls 
+    : (p.imageUrl ? [p.imageUrl] : (p.customImageBase64 ? [`data:image/jpeg;base64,${p.customImageBase64}`] : []));
   const amenities = [...(p.amenities || []), ...(p.landFeatures || [])];
 
   if (titleEl) {
@@ -1918,6 +2356,13 @@ function switchTab(tabId) {
     targetPanel.classList.add('active');
   }
 
+  if (tabId === 'properties' || tabId === 'overview') {
+    renderPropertiesTable();
+    fetchProperties(true);
+  }
+  if (tabId === 'pending-ads') {
+    renderPendingApprovalsSection();
+  }
   if (tabId === 'settings') {
     fetchEnvConfig();
   }
@@ -2116,6 +2561,23 @@ function showToast(message, type = 'info') {
     toast.style.transform = 'translateX(50px)';
     setTimeout(() => toast.remove(), 300);
   }, 3500);
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ta-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return dateStr;
+  }
 }
 
 function formatTamilPrice(price, type) {
@@ -2913,6 +3375,10 @@ async function loadLiveUsers(isBackground = false) {
       const elTotal = document.getElementById('statTotalUsers');
       if (elTotal) elTotal.innerText = stats.total_users || 0;
 
+      // Update Overview Dashboard Live Card
+      const elDashLive = document.getElementById('statDashboardLiveUsers');
+      if (elDashLive) elDashLive.innerText = stats.active_now || 0;
+
       // Update Sidebar Live Badge
       const badge = document.getElementById('sidebarLiveCount');
       if (badge) {
@@ -3118,6 +3584,70 @@ async function submitAdminDirectMsg(e) {
     if (btn) {
       btn.disabled = false;
       btn.innerText = '🚀 செய்தி அனுப்பு (Send Message)';
+    }
+  }
+}
+
+/* ==================== 13. BULK PUSH NOTIFICATIONS / BROADCAST ==================== */
+
+function openAdminBroadcastModal() {
+  const modal = document.getElementById('adminBroadcastModal');
+  if (!modal) return;
+  document.getElementById('adminBroadcastTitle').value = '';
+  document.getElementById('adminBroadcastMessage').value = '';
+  modal.classList.add('show');
+}
+
+function applyBroadcastTemplate(title, msg) {
+  const titleEl = document.getElementById('adminBroadcastTitle');
+  const msgEl = document.getElementById('adminBroadcastMessage');
+  if (titleEl) titleEl.value = title;
+  if (msgEl) {
+    msgEl.value = msg;
+    msgEl.focus();
+  }
+}
+
+async function submitAdminBroadcast(e) {
+  if (e) e.preventDefault();
+  const title = document.getElementById('adminBroadcastTitle').value.trim();
+  const message = document.getElementById('adminBroadcastMessage').value.trim();
+  const btn = document.getElementById('btnSendAdminBroadcast');
+
+  if (!title || !message) {
+    showToast('தலைப்பு மற்றும் செய்தியை உள்ளிடவும்', 'error');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'அனுப்பப்படுகிறது...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/users.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'broadcast_message',
+        title: title,
+        message: message,
+        admin_name: (AppState.user && AppState.user.name) ? AppState.user.name : 'Super Admin'
+      })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      showToast('📢 அறிவிப்பு அனைத்து பயனர்களுக்கும் வெற்றிகரமாக அனுப்பப்பட்டது!', 'success');
+      closeModal('adminBroadcastModal');
+    } else {
+      showToast(data.message || data.error || 'அறிவிப்பு அனுப்புவதில் பிழை', 'error');
+    }
+  } catch (err) {
+    showToast('API இணைப்பு தோல்வி', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '📢 அனைவருக்கும் அனுப்புக (Broadcast to All)';
     }
   }
 }

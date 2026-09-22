@@ -1,3 +1,9 @@
+<?php
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+$v = time();
+?>
 <!DOCTYPE html>
 <html lang="ta">
 <head>
@@ -11,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/admin.css?v=<?= $v ?>">
 </head>
 <body>
 
@@ -181,6 +187,27 @@
       <!-- Content Body -->
       <main class="content-body">
         
+        <!-- REAL-TIME PENDING AD CONTINUOUS ALARM & DIRECT ACTION STATION -->
+        <div id="pendingAdAlarmBanner" class="pending-alarm-banner" style="display: none;">
+          <div class="pending-alarm-header">
+            <div class="pending-alarm-content">
+              <span class="pending-alarm-icon">🚨</span>
+              <div class="pending-alarm-text">
+                <strong id="pendingAlarmTitle">🔔 புதிய பயனர் விளம்பரம் அப்ரூவலுக்கு வந்துள்ளது! (Pending Ad Waiting for Action)</strong>
+                <span id="pendingAlarmDesc">விளம்பரத்தை அங்கீகரித்து (Accept / Approve) அல்லது நிராகரிக்கும் (Reject) வரை தொடர்ந்து அலாரம் ஒலிக்கும்.</span>
+              </div>
+            </div>
+            <div class="pending-alarm-counter">
+              <span class="badge badge-pending" id="pendingAlarmCounterBadge" style="font-size: 13px; padding: 6px 14px; font-weight: 800;">1 புதிய விளம்பரம் காத்திருப்பில்</span>
+            </div>
+          </div>
+
+          <!-- PENDING ADS CARD LIST DIRECTLY INSIDE THIS ALERT BANNER -->
+          <div class="pending-cards-grid" id="pendingAlarmCardsContainer" style="margin-top: 14px;">
+            <!-- Dynamic Pending Property Cards Injected Here with Direct Accept / Reject buttons -->
+          </div>
+        </div>
+
         <!-- TAB 1: OVERVIEW & PROPERTIES -->
         <section id="tab-overview" class="tab-panel active">
           
@@ -248,6 +275,15 @@
               </div>
               <div class="stat-icon-wrapper icon-emerald">🔓</div>
             </div>
+
+            <div class="stat-card" style="cursor: pointer; border-left: 4px solid #10b981;" onclick="switchTab('live-users')" title="நேரலை பயனர்களைப் பார்க்க கிளிக் செய்க">
+              <div class="stat-info">
+                <h3>நேரலை பயனர்கள்</h3>
+                <div class="stat-number" id="statDashboardLiveUsers" style="color: #10b981;">0</div>
+                <div class="stat-sub">Live Active Users (App / Web) →</div>
+              </div>
+              <div class="stat-icon-wrapper icon-emerald">👥</div>
+            </div>
           </div>
 
           <!-- PENDING APPROVALS QUICK BANNER (Overview) -->
@@ -266,8 +302,36 @@
                 </button>
               </div>
             </div>
-            <div class="pending-cards-grid" id="pendingCardsContainer">
-              <!-- Dynamic Pending Property Cards Injected Here -->
+          <!-- RECENT & ALL PROPERTIES PREVIEW SECTION (Overview) -->
+          <div class="section-card" style="margin-top: 24px;">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">🏡 சமீபத்திய விளம்பரங்கள் (Recent & All Property Listings)</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                  தென்காசி ரியல் எஸ்டேட் விளம்பரங்களின் நேரலை பட்டியல் • முழு அட்டவணை மற்றும் வடிகட்டிகளுக்கு 'அனைத்து விளம்பரங்கள்' பகுதிக்கு செல்லலாம்.
+                </p>
+              </div>
+              <button class="btn btn-gold" onclick="switchTab('properties')">
+                🏡 அனைத்து விளம்பரங்களையும் பார் (View All Ads →)
+              </button>
+            </div>
+
+            <div class="custom-table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>விளம்பரம் (Property / Location)</th>
+                    <th>பிரிவு (Category)</th>
+                    <th>விலை & அளவு (Price & Size)</th>
+                    <th>உரிமையாளர் / ஏஜென்ட்</th>
+                    <th>நிலை (Status)</th>
+                    <th style="text-align: right;">செயல்கள் (Actions)</th>
+                  </tr>
+                </thead>
+                <tbody id="overviewPropertiesTableBody">
+                  <!-- Rendered via JS -->
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -319,6 +383,11 @@
               <div class="cat-icon">🏪</div>
               <div class="cat-title">கடை / வணிகம்</div>
               <div class="cat-count"><span id="catCountShop">0</span> Ads</div>
+            </div>
+            <div class="cat-pill-card" data-cat="apartment">
+              <div class="cat-icon">🏢</div>
+              <div class="cat-title">அபார்ட்மெண்ட்</div>
+              <div class="cat-count"><span id="catCountApartment">0</span> Ads</div>
             </div>
             <div class="cat-pill-card" data-cat="rental">
               <div class="cat-icon">🔑</div>
@@ -1384,7 +1453,10 @@
               <h2 class="panel-title">🟢 நேரலை பயனர்கள் & உடனடி தொடர்பு (Live Users & Messaging)</h2>
               <p class="panel-subtitle">ரியல்-டைமில் மொபைல் ஆப் மற்றும் இணையதளத்தில் உலாவிக்கொண்டிருக்கும் பயனர்களின் விவரங்கள்</p>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-gold" onclick="openAdminBroadcastModal()" style="display:flex; align-items:center; gap:6px; font-weight:700;">
+                📢 அனைவருக்கும் அறிவிப்பு (Broadcast)
+              </button>
               <span class="badge badge-emerald" style="display:flex; align-items:center; gap:6px; font-size:12px; padding:6px 12px;">
                 <span style="width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; box-shadow:0 0 8px #10b981;"></span>
                 <span>நேரலை ஒத்திசைவு (Auto Sync 10s)</span>
@@ -1438,8 +1510,8 @@
                 <input type="text" id="liveUserSearchInput" class="form-control" placeholder="🔍 பயனர் பெயர், எண் அல்லது மின்னஞ்சல் மூலம் தேடுக..." oninput="renderLiveUsersTable()">
               </div>
               <select id="liveUserStatusFilter" class="form-control" style="width: 170px;" onchange="renderLiveUsersTable()">
-                <option value="all">அனைத்து நிலைகள்</option>
-                <option value="online" selected>🟢 நேரலை (Online)</option>
+                <option value="all" selected>அனைத்து நிலைகள் (All Status)</option>
+                <option value="online">🟢 நேரலை (Online)</option>
                 <option value="idle">🟡 செயலற்றோர் (Idle)</option>
                 <option value="offline">⚪ ஆஃப்லைன் (Offline)</option>
               </select>
@@ -1530,7 +1602,12 @@
             </div>
           </div>
 
-          <div class="form-grid-3">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">விற்பனையாளர் பெயர் (Seller / Agent Name) *</label>
+              <input type="text" id="propSellerName" class="form-control" placeholder="எ.கா: சூப்பர் அட்மின் / முருகா ரியல் எஸ்டேட்" value="Super Admin" required>
+            </div>
+
             <div class="form-group">
               <label class="form-label">பதிவிட்டவர் (Poster Type)</label>
               <select id="propPosterType" class="form-control">
@@ -1539,7 +1616,9 @@
                 <option value="Promoter">லேண்ட் புரமோட்டர் (Promoter)</option>
               </select>
             </div>
+          </div>
 
+          <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">தொடர்பு எண் (Phone / WhatsApp) *</label>
               <input type="text" id="propContactPhone" class="form-control" value="+91 98941 74944" required>
@@ -1572,6 +1651,20 @@
             <textarea id="propDescription" class="form-control" rows="3" placeholder="சொத்தின் கூடுதல் சிறப்பம்சங்கள், நீர் வளம், சாலை வசதி..."></textarea>
           </div>
 
+          <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>📸 புகைப்படங்கள் (Property Photos)</span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">பல புகைப்படங்களை தேர்ந்தெடுக்கலாம் (Multiple images)</span>
+            </label>
+            <div class="image-upload-box" onclick="document.getElementById('propImageInput').click()" style="border: 2px dashed rgba(212,175,55,0.4); border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.02); transition: all 0.2s ease;">
+              <input type="file" id="propImageInput" accept="image/*" multiple style="display:none;" onchange="handleAdminImageUpload(event)">
+              <div style="font-size: 1.8rem; margin-bottom: 6px;">📷</div>
+              <div style="font-size: 0.9rem; font-weight: 600; color: var(--accent-gold);">புகைப்படங்களை பதிவேற்ற இங்கே கிளிக் செய்யவும்</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">JPG, PNG, WebP (அதிகபட்சம் 10MB)</div>
+            </div>
+            <div id="adminPropImagePreviewGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; margin-top: 12px;"></div>
+          </div>
+
           <div class="form-grid-3" style="margin-top: 14px;">
             <div class="form-group">
               <label class="form-label">விளம்பர நிலை (Status)</label>
@@ -1590,6 +1683,10 @@
               <div class="checkbox-group">
                 <input type="checkbox" id="propIsFeatured">
                 <label for="propIsFeatured">★ சிறப்பு விளம்பரம் (Featured Ad)</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="propIsPremium">
+                <label for="propIsPremium">👑 பிரீமியம் விளம்பரம் (Premium / Paid Unlock)</label>
               </div>
             </div>
 
@@ -1694,7 +1791,7 @@
   </div>
 
   <!-- Property Detailed Review Inspector Modal -->
-  <div class="modal" id="propertyInspectModal">
+  <div class="modal-backdrop" id="propertyInspectModal">
     <div class="modal-dialog" style="max-width: 740px;">
       <div class="modal-content">
         <div class="modal-header">
@@ -1709,8 +1806,10 @@
         </div>
       </div>
     </div>
+  </div>
+
   <!-- Modal: Super Admin Direct Message Modal -->
-  <div class="modal" id="adminDirectMsgModal">
+  <div class="modal-backdrop" id="adminDirectMsgModal">
     <div class="modal-dialog" style="max-width: 580px;">
       <form class="modal-content" onsubmit="submitAdminDirectMsg(event)">
         <div class="modal-header">
@@ -1759,7 +1858,59 @@
     </div>
   </div>
 
+  <!-- Modal: Super Admin Bulk Push Notification / Broadcast Modal -->
+  <div class="modal-backdrop" id="adminBroadcastModal">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <form class="modal-content" onsubmit="submitAdminBroadcast(event)">
+        <div class="modal-header">
+          <h3 class="modal-title">📢 அனைவருக்கும் பொது அறிவிப்பு (Bulk Push Notification)</h3>
+          <button type="button" class="modal-close" onclick="closeModal('adminBroadcastModal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #34d399;">🌐 அனைத்து பயனர்களுக்கும் ஒரே நேரத்தில் சென்றடையும்</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+              இந்த அறிவிப்பு செயலில் உள்ள அனைத்து மொபைல் ஆப் மற்றும் இணையதள பயனர்களுக்கும் உடனடி விழிப்பூட்டலாகவும் (In-App Dialog Popup), அறிவிப்புப் பலகையிலும் (Notification Tray) தோன்றும்.
+            </div>
+          </div>
+
+          <!-- Quick Templates -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="font-size: 12px;">⚡ விரைவு டெம்ப்ளேட்டுகள் (Quick Templates):</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyBroadcastTemplate('🎉 புதிய சொத்துக்கள் சேர்க்கப்பட்டன!', 'தென்காசி, குற்றாலம் மற்றும் சுற்றுவட்டார பகுதிகளில் பிரத்யேக வீட்டுமனைகள் மற்றும் வீடுகள் இன்று விற்பனைக்கு வந்துள்ளன! உடனே பார்வையிடுங்கள்.')">
+                🏡 புதிய சொத்துக்கள்
+              </button>
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyBroadcastTemplate('🎁 சிறப்பு இலவச விளம்பர சலுகை!', 'உங்கள் நிலம் அல்லது வீட்டை தென்காசி கனவுகள் தளத்தில் இன்று முற்றிலும் இலவசமாக விளம்பரம் செய்யலாம். இந்த அறிய வாய்ப்பை பயன்படுத்தி உடனே விளம்பரம் பதிவிடுங்கள்!')">
+                🎁 இலவச விளம்பரம்
+              </button>
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="applyBroadcastTemplate('🔔 ஆப் புதுப்பிப்பு & வேகமான வசதிகள்!', 'தென்காசி கனவுகள் மொபைல் ஆப் புதிய மேம்பாடுகளுடன் தயார்! புதிய சொத்துக்களை எளிதாக தேடி உரிமையாளர்களை உடனே தொடர்பு கொள்ளுங்கள்.')">
+                ⚡ ஆப் அப்டேட்
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">அறிவிப்பு தலைப்பு (Notification Title) *</label>
+            <input type="text" id="adminBroadcastTitle" class="form-control" placeholder="எ.கா: 🎉 புதிய வீட்டுமனைகள் விற்பனைக்கு வந்துள்ளன!" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">அறிவிப்பு செய்தி (Notification Message Content) *</label>
+            <textarea id="adminBroadcastMessage" class="form-control" rows="4" placeholder="பயனர்களுக்கு அனுப்ப வேண்டிய அறிவிப்பு செய்தியை தட்டச்சு செய்யவும்..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('adminBroadcastModal')">ரத்து</button>
+          <button type="submit" class="btn btn-gold" id="btnSendAdminBroadcast">
+            📢 அனைவருக்கும் அனுப்புக (Broadcast to All)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="js/admin.js"></script>
+  <script src="js/admin.js?v=<?= $v ?>"></script>
 </body>
 </html>

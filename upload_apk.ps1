@@ -40,5 +40,6 @@ function Upload-LargeFile($remotePath) {
 }
 
 Upload-LargeFile "/TenkasiDreamsLand.apk"
+Upload-LargeFile "/public_html/TenkasiDreamsLand.apk"
 
 Write-Host "ALL APK UPLOADS COMPLETE!" -ForegroundColor Green

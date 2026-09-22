@@ -8,15 +8,15 @@ import '../../models/user_profile.dart';
 import 'seed_data.dart';
 
 class LocalStorageService {
-  static const String _keyProperties = 'nestprime_properties_v1';
-  static const String _keyFavorites = 'nestprime_favorites_v1';
-  static const String _keyConversations = 'nestprime_conversations_v1';
-  static const String _keyNotifications = 'nestprime_notifications_v1';
-  static const String _keyRecentSearches = 'nestprime_recent_searches_v1';
-  static const String _keySavedSearches = 'nestprime_saved_searches_v1';
-  static const String _keyUserProfile = 'nestprime_user_profile_v1';
-  static const String _keyCurrentLocation = 'nestprime_current_location_v1';
-  static const String _keyBuyerRequirements = 'tenkasi_buyer_requirements_v1';
+  static const String _keyProperties = 'tenkasidreams_properties_v2';
+  static const String _keyFavorites = 'tenkasidreams_favorites_v2';
+  static const String _keyConversations = 'tenkasidreams_conversations_v2';
+  static const String _keyNotifications = 'tenkasidreams_notifications_v2';
+  static const String _keyRecentSearches = 'tenkasidreams_recent_searches_v2';
+  static const String _keySavedSearches = 'tenkasidreams_saved_searches_v2';
+  static const String _keyUserProfile = 'tenkasidreams_user_profile_v2';
+  static const String _keyCurrentLocation = 'tenkasidreams_current_location_v2';
+  static const String _keyBuyerRequirements = 'tenkasidreams_buyer_requirements_v2';
 
   final SharedPreferences _prefs;
 
@@ -30,21 +30,21 @@ class LocalStorageService {
   }
 
   Future<void> _ensureInitialized() async {
-    // Check if properties exist; if not, seed default properties
+    // Check if properties exist; if not, initialize empty
     if (!_prefs.containsKey(_keyProperties)) {
-      await saveProperties(SeedData.initialProperties);
+      await saveProperties([]);
     }
     // Check conversations
     if (!_prefs.containsKey(_keyConversations)) {
-      await saveConversations(SeedData.initialConversations);
+      await saveConversations([]);
     }
     // Check notifications
     if (!_prefs.containsKey(_keyNotifications)) {
-      await saveNotifications(SeedData.initialNotifications);
+      await saveNotifications([]);
     }
     // Check recent searches
     if (!_prefs.containsKey(_keyRecentSearches)) {
-      await _prefs.setStringList(_keyRecentSearches, SeedData.initialRecentSearches);
+      await _prefs.setStringList(_keyRecentSearches, []);
     }
     // Check user profile
     if (!_prefs.containsKey(_keyUserProfile)) {
@@ -56,7 +56,7 @@ class LocalStorageService {
     }
     // Check buyer requirements (மக்களின் தேவை)
     if (!_prefs.containsKey(_keyBuyerRequirements)) {
-      await saveBuyerRequirements(SeedData.initialBuyerRequirements);
+      await saveBuyerRequirements([]);
     }
   }
 
@@ -67,13 +67,16 @@ class LocalStorageService {
   List<Property> getProperties() {
     final raw = _prefs.getString(_keyProperties);
     if (raw == null || raw.isEmpty) {
-      return List<Property>.from(SeedData.initialProperties);
+      return [];
     }
     try {
       final List<dynamic> list = jsonDecode(raw);
-      return list.map((item) => Property.fromMap(item as Map<String, dynamic>)).toList();
+      return list
+          .map((item) => Property.fromMap(item as Map<String, dynamic>))
+          .where((p) => !p.id.startsWith('seed_') && !p.id.startsWith('mock_'))
+          .toList();
     } catch (_) {
-      return List<Property>.from(SeedData.initialProperties);
+      return [];
     }
   }
 
@@ -108,7 +111,7 @@ class LocalStorageService {
   // ==========================================
 
   List<String> getFavoriteIds() {
-    return _prefs.getStringList(_keyFavorites) ?? ['prop_1', 'prop_3', 'prop_5', 'prop_8', 'prop_11'];
+    return _prefs.getStringList(_keyFavorites) ?? [];
   }
 
   Future<void> toggleFavorite(String propertyId) async {
@@ -136,13 +139,13 @@ class LocalStorageService {
   List<ChatConversation> getConversations() {
     final raw = _prefs.getString(_keyConversations);
     if (raw == null || raw.isEmpty) {
-      return List<ChatConversation>.from(SeedData.initialConversations);
+      return [];
     }
     try {
       final List<dynamic> list = jsonDecode(raw);
       return list.map((item) => ChatConversation.fromMap(item as Map<String, dynamic>)).toList();
     } catch (_) {
-      return List<ChatConversation>.from(SeedData.initialConversations);
+      return [];
     }
   }
 
@@ -181,6 +184,8 @@ class LocalStorageService {
           location: property.location,
           propertyType: property.propertyType,
           areaSqFt: property.areaSqFt,
+          imageUrl: property.primaryImageUrl,
+          customImageBase64: property.customImageBase64,
         ),
         lastMessage: 'Enquired about ${property.title}',
         lastMessageTime: DateTime.now(),
@@ -207,13 +212,13 @@ class LocalStorageService {
   List<NotificationItem> getNotifications() {
     final raw = _prefs.getString(_keyNotifications);
     if (raw == null || raw.isEmpty) {
-      return List<NotificationItem>.from(SeedData.initialNotifications);
+      return [];
     }
     try {
       final List<dynamic> list = jsonDecode(raw);
       return list.map((item) => NotificationItem.fromMap(item as Map<String, dynamic>)).toList();
     } catch (_) {
-      return List<NotificationItem>.from(SeedData.initialNotifications);
+      return [];
     }
   }
 
@@ -235,6 +240,14 @@ class LocalStorageService {
     final notifs = getNotifications();
     final updated = notifs.map((n) => n.copyWith(isRead: true)).toList();
     await saveNotifications(updated);
+  }
+
+  Future<void> addNotification(NotificationItem item) async {
+    final notifs = getNotifications();
+    notifs.removeWhere((n) => n.id == item.id);
+    notifs.insert(0, item);
+    if (notifs.length > 100) notifs.removeRange(100, notifs.length);
+    await saveNotifications(notifs);
   }
 
   // ==========================================
@@ -259,11 +272,7 @@ class LocalStorageService {
   }
 
   List<String> getSavedSearches() {
-    return _prefs.getStringList(_keySavedSearches) ?? [
-      '3 BHK Villa in Porur under ₹1 Cr',
-      'Residential Plots in Tambaram',
-      'OMR Commercial Office with Power Backup',
-    ];
+    return _prefs.getStringList(_keySavedSearches) ?? [];
   }
 
   Future<void> addSavedSearch(String query) async {
@@ -288,7 +297,12 @@ class LocalStorageService {
     final raw = _prefs.getString(_keyUserProfile);
     if (raw == null) return SeedData.initialProfile;
     try {
-      return UserProfile.fromMap(jsonDecode(raw));
+      final p = UserProfile.fromMap(jsonDecode(raw));
+      // Reset stale mock profile if not explicitly logged in
+      if (!p.isLoggedIn && (p.email == 'tenkasidreams@gmail.com' || p.phone.contains('98941 74944'))) {
+        return SeedData.initialProfile;
+      }
+      return p;
     } catch (_) {
       return SeedData.initialProfile;
     }
@@ -333,8 +347,16 @@ class LocalStorageService {
     }
   }
 
+  Future<void> setUnlockedPropertyIds(List<String> ids) async {
+    await _prefs.setStringList(_keyUnlockedProperties, ids);
+  }
+
   int getFreeContactsUsed() {
     return _prefs.getInt(_keyFreeContactsUsed) ?? 0;
+  }
+
+  Future<void> setFreeContactsUsed(int count) async {
+    await _prefs.setInt(_keyFreeContactsUsed, count);
   }
 
   Future<void> incrementFreeContactsUsed() async {
@@ -349,12 +371,12 @@ class LocalStorageService {
 
   List<BuyerRequirement> getBuyerRequirements() {
     final raw = _prefs.getString(_keyBuyerRequirements);
-    if (raw == null || raw.isEmpty) return SeedData.initialBuyerRequirements;
+    if (raw == null || raw.isEmpty) return [];
     try {
       final List<dynamic> decoded = jsonDecode(raw);
       return decoded.map((item) => BuyerRequirement.fromMap(item)).toList();
     } catch (_) {
-      return SeedData.initialBuyerRequirements;
+      return [];
     }
   }
 
@@ -374,12 +396,31 @@ class LocalStorageService {
   // ==========================================
 
   Future<void> resetDemoData() async {
-    await saveProperties(SeedData.initialProperties);
-    await _prefs.setStringList(_keyFavorites, ['prop_1', 'prop_3', 'prop_5', 'prop_8', 'prop_11']);
-    await saveConversations(SeedData.initialConversations);
-    await saveNotifications(SeedData.initialNotifications);
-    await _prefs.setStringList(_keyRecentSearches, SeedData.initialRecentSearches);
+    await saveProperties([]);
+    await _prefs.setStringList(_keyFavorites, []);
+    await saveConversations([]);
+    await saveNotifications([]);
+    await _prefs.setStringList(_keyRecentSearches, []);
     await saveUserProfile(SeedData.initialProfile);
     await _prefs.setString(_keyCurrentLocation, 'Tenkasi, Tamil Nadu');
+  }
+
+  /// Cleans session-specific data on logout while strictly preserving persistent contact counts
+  Future<void> clearUserSessionData() async {
+    // 1. Reset user profile to default guest
+    await saveUserProfile(SeedData.initialProfile);
+    // 2. Note: Do NOT remove _keyFreeContactsUsed or _keyUnlockedProperties
+    // so logout/login cannot reset the 3-ad free view limit.
+    // 3. Clear favorites
+    await _prefs.setStringList(_keyFavorites, []);
+    // 4. Clear conversations
+    await saveConversations([]);
+    // 5. Clear notifications
+    await saveNotifications([]);
+    // 6. Clear recent searches
+    await _prefs.setStringList(_keyRecentSearches, []);
+    // 7. Remove any cached user-posted properties
+    final props = getProperties().where((p) => !p.isUserPosted).toList();
+    await saveProperties(props);
   }
 }

@@ -29,7 +29,7 @@ class _LocationDialogState extends ConsumerState<LocationDialog> {
     setState(() => _isDetecting = true);
 
     try {
-      final result = await LocationService.getCurrentLiveLocation();
+      final result = await LocationService.getCurrentLiveLocation(context: context);
 
       if (!mounted) return;
 

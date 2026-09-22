@@ -146,29 +146,54 @@ switch ($method) {
         // 2. Get all conversations for a user (buyer or seller)
         if ($action === 'conversations') {
             $userPhone = cleanPhone($_GET['user_phone'] ?? $_GET['phone'] ?? '');
-            if (empty($userPhone)) {
-                sendResponse(['success' => false, 'error' => 'User phone is required'], 400);
+            $userEmail = strtolower(trim($_GET['user_email'] ?? $_GET['email'] ?? ''));
+            if (empty($userPhone) && empty($userEmail)) {
+                sendResponse(['success' => false, 'error' => 'User phone or email is required'], 400);
             }
 
             $convList = [];
 
             if ($pdo) {
                 try {
-                    $stmt = $pdo->prepare("SELECT * FROM `chat_conversations` 
-                        WHERE (REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '+', ''), '-', '') LIKE ?) 
-                           OR (REPLACE(REPLACE(REPLACE(seller_phone, ' ', ''), '+', ''), '-', '') LIKE ?) 
-                        ORDER BY `last_message_time` DESC");
-                    $stmt->execute(['%' . $userPhone . '%', '%' . $userPhone . '%']);
+                    if (!empty($userPhone) && !empty($userEmail)) {
+                        $stmt = $pdo->prepare("SELECT * FROM `chat_conversations` 
+                            WHERE (REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '+', ''), '-', '') LIKE ?) 
+                               OR (REPLACE(REPLACE(REPLACE(seller_phone, ' ', ''), '+', ''), '-', '') LIKE ?)
+                               OR LOWER(buyer_phone) = ?
+                               OR LOWER(seller_phone) = ?
+                            ORDER BY `last_message_time` DESC");
+                        $stmt->execute(['%' . $userPhone . '%', '%' . $userPhone . '%', $userEmail, $userEmail]);
+                    } elseif (!empty($userPhone)) {
+                        $stmt = $pdo->prepare("SELECT * FROM `chat_conversations` 
+                            WHERE (REPLACE(REPLACE(REPLACE(buyer_phone, ' ', ''), '+', ''), '-', '') LIKE ?) 
+                               OR (REPLACE(REPLACE(REPLACE(seller_phone, ' ', ''), '+', ''), '-', '') LIKE ?) 
+                            ORDER BY `last_message_time` DESC");
+                        $stmt->execute(['%' . $userPhone . '%', '%' . $userPhone . '%']);
+                    } else {
+                        $stmt = $pdo->prepare("SELECT * FROM `chat_conversations` 
+                            WHERE LOWER(buyer_phone) = ? 
+                               OR LOWER(seller_phone) = ? 
+                            ORDER BY `last_message_time` DESC");
+                        $stmt->execute([$userEmail, $userEmail]);
+                    }
                     $convList = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 } catch (Exception $e) {}
             }
 
             if (empty($convList)) {
                 $data = getJsonChats($chatsFile);
-                $convList = array_values(array_filter($data['conversations'], function($c) use ($userPhone) {
+                $convList = array_values(array_filter($data['conversations'], function($c) use ($userPhone, $userEmail) {
                     $bP = cleanPhone($c['buyer_phone'] ?? '');
                     $sP = cleanPhone($c['seller_phone'] ?? '');
-                    return strpos($bP, $userPhone) !== false || strpos($sP, $userPhone) !== false;
+                    $bRaw = strtolower(trim($c['buyer_phone'] ?? ''));
+                    $sRaw = strtolower(trim($c['seller_phone'] ?? ''));
+                    if (!empty($userPhone) && (strpos($bP, $userPhone) !== false || strpos($sP, $userPhone) !== false)) {
+                        return true;
+                    }
+                    if (!empty($userEmail) && ($bRaw === $userEmail || $sRaw === $userEmail)) {
+                        return true;
+                    }
+                    return false;
                 }));
             }
 
@@ -219,10 +244,10 @@ switch ($method) {
             $propId = trim($input['property_id'] ?? $input['propId'] ?? '');
             $propTitle = trim($input['property_title'] ?? $input['propTitle'] ?? 'Property');
             $buyerName = trim($input['buyer_name'] ?? $input['buyerName'] ?? 'Customer');
-            $buyerPhone = trim($input['buyer_phone'] ?? $input['buyerPhone'] ?? '');
+            $buyerPhone = trim($input['buyer_phone'] ?? $input['buyerPhone'] ?? ($input['buyer_email'] ?? ''));
             $sellerName = trim($input['seller_name'] ?? $input['sellerName'] ?? 'Owner');
-            $sellerPhone = trim($input['seller_phone'] ?? $input['sellerPhone'] ?? '');
-            $senderPhone = trim($input['sender_phone'] ?? $input['senderPhone'] ?? $buyerPhone);
+            $sellerPhone = trim($input['seller_phone'] ?? $input['sellerPhone'] ?? ($input['seller_email'] ?? ''));
+            $senderPhone = trim($input['sender_phone'] ?? $input['senderPhone'] ?? ($input['sender_email'] ?? $buyerPhone));
             $senderName = trim($input['sender_name'] ?? $input['senderName'] ?? $buyerName);
             $senderRole = trim($input['sender_role'] ?? $input['senderRole'] ?? 'buyer');
             $text = trim($input['message'] ?? $input['text'] ?? '');
@@ -240,6 +265,7 @@ switch ($method) {
 
             // 1. Generate or fetch conversation ID
             $cleanB = cleanPhone($buyerPhone);
+            if (empty($cleanB)) $cleanB = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $buyerPhone));
             if (empty($convId)) {
                 $convId = 'conv_' . md5($propId . '_' . $cleanB);
             }

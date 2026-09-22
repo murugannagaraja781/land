@@ -58,7 +58,7 @@ class AppStrings {
       // Navigation
       'nav_home': 'Home',
       'nav_categories': 'Categories',
-      'nav_sell': 'My Ad',
+      'nav_sell': 'Post Ad',
       'nav_chats': 'Chat',
       'nav_account': 'Account',
       'nav_my_ads': 'My Ads',
@@ -208,7 +208,7 @@ class AppStrings {
       // Navigation
       'nav_home': 'முகப்பு',
       'nav_categories': 'வகைகள்',
-      'nav_sell': 'என் விளம்பரம்',
+      'nav_sell': 'பதிவிடு',
       'nav_chats': 'சாட்',
       'nav_account': 'என் கணக்கு',
       'nav_my_ads': 'என் விளம்பரங்கள்',

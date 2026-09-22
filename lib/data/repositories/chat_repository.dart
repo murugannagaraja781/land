@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../core/config/api_config.dart';
 import '../local/local_storage_service.dart';
 import '../../models/agent.dart';
 import '../../models/chat_message.dart';
-import '../../models/notification_item.dart';
 import '../../models/property.dart';
 
 class ChatRepository {
@@ -57,12 +57,13 @@ class ChatRepository {
     } catch (_) {}
   }
 
-  Future<void> syncAllUserConversations(String userPhone) async {
+  Future<void> syncAllUserConversations(String userPhone, {String? userEmail}) async {
     final cleanP = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cleanP.isEmpty) return;
+    final cleanEmail = (userEmail ?? '').trim().toLowerCase();
+    if (cleanP.isEmpty && cleanEmail.isEmpty) return;
 
     try {
-      final url = '${ApiConfig.instance.serverUrl}/chat.php?action=conversations&user_phone=$cleanP';
+      final url = '${ApiConfig.instance.serverUrl}/chat.php?action=conversations&user_phone=$cleanP&user_email=${Uri.encodeComponent(cleanEmail)}';
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -75,7 +76,8 @@ class ChatRepository {
             if (convId.isEmpty) continue;
 
             final sPhone = (c['seller_phone'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '');
-            final isSeller = cleanP == sPhone;
+            final sEmail = (c['seller_email'] ?? '').toString().trim().toLowerCase();
+            final isSeller = (cleanP.isNotEmpty && cleanP == sPhone) || (cleanEmail.isNotEmpty && cleanEmail == sEmail);
 
             final counterpartName = isSeller ? (c['buyer_name'] ?? 'Buyer') : (c['seller_name'] ?? 'Direct Owner');
             final counterpartPhone = isSeller ? (c['buyer_phone'] ?? '') : (c['seller_phone'] ?? '');
@@ -122,6 +124,69 @@ class ChatRepository {
     } catch (_) {}
   }
 
+  Future<void> syncAdminAllConversations() async {
+    try {
+      final url = '${ApiConfig.instance.serverUrl}/chat.php?action=admin_all';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['conversations'] is List) {
+          final convList = data['conversations'] as List;
+          final localConvs = _storage.getConversations();
+
+          for (final c in convList) {
+            final convId = c['id'] ?? '';
+            if (convId.isEmpty) continue;
+
+            final buyerName = c['buyer_name'] ?? 'Buyer';
+            final buyerPhone = c['buyer_phone'] ?? '';
+            final sellerName = c['seller_name'] ?? 'Seller';
+            final sellerPhone = c['seller_phone'] ?? '';
+
+            final existingIndex = localConvs.indexWhere((lc) => lc.id == convId);
+
+            if (existingIndex == -1) {
+              final newConv = ChatConversation(
+                id: convId,
+                agent: Agent(
+                  id: 'agent_$convId',
+                  name: '$buyerName ⇄ $sellerName',
+                  agencyName: 'Buyer: $buyerPhone | Seller: $sellerPhone',
+                  phone: sellerPhone.isNotEmpty ? sellerPhone : buyerPhone,
+                  email: '',
+                  avatarKey: 'agent_1',
+                  rating: 5.0,
+                  reviewsCount: 1,
+                  experienceYears: 2,
+                  totalListings: 1,
+                  isVerified: true,
+                  about: '',
+                ),
+                property: ChatPropertySummary(
+                  id: c['property_id'] ?? '',
+                  title: c['property_title'] ?? 'Property',
+                  price: 0,
+                  location: 'Tenkasi',
+                  propertyType: 'Property',
+                  areaSqFt: 0,
+                ),
+                lastMessage: c['last_message'] ?? '',
+                lastMessageTime: DateTime.tryParse(c['last_message_time'] ?? '') ?? DateTime.now(),
+                unreadCount: 0,
+                messages: const [],
+              );
+              localConvs.insert(0, newConv);
+              await _storage.saveConversations(localConvs);
+            }
+            await syncRemoteMessages(convId);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Admin sync conversations error: $e');
+    }
+  }
+
   Future<void> sendMessage({
     required String conversationId,
     required String text,
@@ -142,7 +207,12 @@ class ChatRepository {
     final user = _storage.getUserProfile();
     final cleanUserP = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
     final cleanAgentP = (conv?.agent.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-    final isSeller = cleanUserP.isNotEmpty && cleanUserP == cleanAgentP;
+    final cleanUserEmail = user.email.trim().toLowerCase();
+    final cleanAgentEmail = (conv?.agent.email ?? '').trim().toLowerCase();
+    final isSeller = (cleanUserP.isNotEmpty && cleanUserP == cleanAgentP) ||
+                     (cleanUserEmail.isNotEmpty && cleanUserEmail == cleanAgentEmail);
+
+    final userIdentifier = cleanUserP.isNotEmpty ? user.phone : (user.email.isNotEmpty ? user.email : 'Customer');
 
     // 2. Send to live server chat.php
     try {
@@ -156,66 +226,19 @@ class ChatRepository {
           'property_id': conv?.property.id ?? '',
           'property_title': conv?.property.title ?? '',
           'buyer_name': isSeller ? (conv?.agent.name ?? 'Customer') : (user.name.isNotEmpty ? user.name : 'Customer'),
-          'buyer_phone': isSeller ? (conv?.agent.phone ?? '') : user.phone,
+          'buyer_phone': isSeller ? (conv?.agent.phone ?? '') : userIdentifier,
+          'buyer_email': isSeller ? (conv?.agent.email ?? '') : user.email,
           'seller_name': isSeller ? (user.name.isNotEmpty ? user.name : 'Direct Owner') : (conv?.agent.name ?? 'Direct Owner'),
-          'seller_phone': isSeller ? user.phone : (conv?.agent.phone ?? ''),
-          'sender_phone': user.phone,
+          'seller_phone': isSeller ? userIdentifier : (conv?.agent.phone ?? ''),
+          'seller_email': isSeller ? user.email : (conv?.agent.email ?? ''),
+          'sender_phone': userIdentifier,
+          'sender_email': user.email,
           'sender_name': user.name.isNotEmpty ? user.name : (isSeller ? 'Owner' : 'Customer'),
           'sender_role': isSeller ? 'seller' : 'buyer',
           'message': text,
         }),
       ).timeout(const Duration(seconds: 4));
     } catch (_) {}
-
-    // 3. Fallback smart assistant reply ONLY for buyers if seller is offline
-    if (!isSeller) {
-      Timer(const Duration(milliseconds: 1500), () async {
-        final replyText = _generateSmartReply(text);
-        final agentMsg = ChatMessage(
-          id: 'msg_agent_${DateTime.now().millisecondsSinceEpoch}',
-          conversationId: conversationId,
-          text: replyText,
-          isFromUser: false,
-          timestamp: DateTime.now(),
-          isRead: false,
-        );
-
-        await _storage.addMessageToConversation(conversationId, agentMsg);
-
-        // Add a notification as well
-        final currentConv = getConversationById(conversationId);
-        if (currentConv != null) {
-          final notif = NotificationItem(
-            id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
-            title: 'Reply from ${currentConv.agent.name}',
-            message: replyText,
-            timestamp: DateTime.now(),
-            type: 'enquiry',
-            propertyId: currentConv.property.id,
-          );
-          final notifs = _storage.getNotifications();
-          notifs.insert(0, notif);
-          await _storage.saveNotifications(notifs);
-        }
-
-        onAgentReplied(agentMsg);
-      });
-    }
-  }
-
-  String _generateSmartReply(String userMessage) {
-    final lower = userMessage.toLowerCase();
-    if (lower.contains('price') || lower.contains('negotiable') || lower.contains('rate') || lower.contains('cost')) {
-      return 'The quoted price is very competitive for this locality. There is a slight window for negotiation on prompt payment and token advance. Shall we meet to finalize?';
-    } else if (lower.contains('visit') || lower.contains('see') || lower.contains('tomorrow') || lower.contains('schedule') || lower.contains('time')) {
-      return 'I would be delighted to host you for a site inspection! I can arrange access tomorrow between 10:30 AM and 5:00 PM. Which slot works best for you?';
-    } else if (lower.contains('loan') || lower.contains('bank') || lower.contains('approval') || lower.contains('rera') || lower.contains('cmda')) {
-      return 'All approvals including CMDA / DTCP and RERA registration are fully verified. We have pre-approved home loan sanction with SBI, HDFC, and ICICI up to 80-85%.';
-    } else if (lower.contains('parking') || lower.contains('car') || lower.contains('amenities')) {
-      return 'Yes, reserved covered car parking is allotted along with visitor parking. All amenities are fully functional and maintained by the association.';
-    } else {
-      return 'Thank you for your message! I have noted your requirements and will share the comprehensive PDF brochure and floor plan. Feel free to call me anytime!';
-    }
   }
 
   Future<void> startConversationForProperty(Property property) async {

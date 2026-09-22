@@ -106,6 +106,29 @@ switch ($method) {
             break;
         }
 
+        if ($action === 'broadcast') {
+            $newNotif = [
+                'id' => 'broad_' . time() . '_' . rand(100, 999),
+                'type' => 'broadcast',
+                'title' => trim($input['title'] ?? '📢 சூப்பர் அட்மின் பொது அறிவிப்பு'),
+                'message' => trim($input['message'] ?? ''),
+                'adminName' => trim($input['adminName'] ?? $input['admin_name'] ?? 'Super Admin'),
+                'timestamp' => date('c'),
+                'isRead' => false,
+                'status' => 'active'
+            ];
+
+            array_unshift($notifications, $newNotif);
+            saveNotificationsData($notifsFile, array_slice($notifications, 0, 1000));
+
+            sendResponse([
+                'success' => true,
+                'message' => 'பொது அறிவிப்பு வெற்றிகரமாக உருவாக்கப்பட்டது',
+                'notification' => $newNotif
+            ], 201);
+            break;
+        }
+
         sendResponse(['success' => false, 'message' => 'Invalid action'], 400);
         break;
 

@@ -77,6 +77,7 @@ class OlxGridCard extends ConsumerWidget {
                     propertyType: property.propertyType,
                     visualIndex: property.id.hashCode.abs() % 4,
                     customImageBase64: property.customImageBase64,
+                    imageUrl: property.primaryImageUrl,
                     height: 118,
                     width: double.infinity,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
@@ -249,7 +250,7 @@ class OlxGridCard extends ConsumerWidget {
 
                           // Area & Facing
                           Text(
-                            '$areaDisplay ${property.facing.isNotEmpty ? "• ${property.facing}" : ""}',
+                            '$areaDisplay ${property.facing.isNotEmpty ? "• ${property.facing.split('(').first.trim()}" : ""}',
                             style: const TextStyle(
                               color: AppColors.olxNavy,
                               fontWeight: FontWeight.w600,
@@ -277,44 +278,17 @@ class OlxGridCard extends ConsumerWidget {
 
                       // Location & Date (OLX Footer in small uppercase)
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    property.location.split(',').first.trim().toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppColors.olxTextMuted,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                if (distanceBadge != null) ...[
-                                  const SizedBox(width: 3),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEFF6FF),
-                                      borderRadius: BorderRadius.circular(3),
-                                      border: Border.all(color: const Color(0xFFBFDBFE), width: 0.5),
-                                    ),
-                                    child: Text(
-                                      '📍 $distanceBadge',
-                                      style: const TextStyle(
-                                        color: Color(0xFF1D4ED8),
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                            child: Text(
+                              '${property.location.split(',').first.trim().toUpperCase()}${distanceBadge != null ? " • 📍 $distanceBadge" : ""}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.olxTextMuted,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 4),

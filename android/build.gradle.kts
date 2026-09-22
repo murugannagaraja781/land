@@ -17,6 +17,28 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+
+    val fixCompileSdk = {
+        val androidExt = extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                val method = androidExt.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
+                method.invoke(androidExt, 36)
+            } catch (_: Exception) {
+                try {
+                    androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType).invoke(androidExt, 36)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    if (state.executed) {
+        fixCompileSdk()
+    } else {
+        afterEvaluate {
+            fixCompileSdk()
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

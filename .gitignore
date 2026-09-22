@@ -14,19 +14,17 @@ migrate_working_dir/
 .env
 api/.env
 *.env
+*.tmp
+*.bak
 
-# IntelliJ related
+# IDE & Editors
 *.iml
 *.ipr
 *.iws
 .idea/
+.vscode/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -34,15 +32,65 @@ api/.env
 .pub-cache/
 .pub/
 /build/
+**/build/
 /coverage/
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
+# Android Studio & Gradle
+.gradle/
+**/android/.gradle/
+/android/build/
+/android/app/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Symbolication & Obfuscation
+app.*.symbols
+app.*.map.json
+
+# APKs and App Bundles (Google Play / Release binaries)
+*.apk
+*.aab
+*.ap_
+*.dex
+TenkasiDreamsLand.apk
+TenkasiDreamsAdmin.apk
+TenkasiDreamsLand.aab
+Tenkasi_Dreams_Land.apk
+tenkasi_dreams_land_v2.apk
+
+# Keystores & Signing Keys
+*.jks
+*.keystore
+key.properties
+android/key.properties
+android/app/upload-keystore.jks
+
+# Google FCM, Firebase & Service Account Credentials
+api/service-account.json
+*service-account*.json
+*firebase-adminsdk*.json
+api/data/fcm_token_cache.json
+testers.csv
+
+# Runtime dynamic event & user caches
+api/data/live_users.json
+api/data/realtime_events.json
+
+# Play Store Screenshots and generated graphics
+screenshot*.png
+screenshot*.jpg
+screenshot*.webp
+playstore_icon_*.png
+playstore_feature_graphic_*.png
+playstore_feature_graphic_*.jpg
+
+# Local deployment, test and scratch scripts
+test_*.ps1
+test_*.php
+check_*.ps1
+check_*.php
+upload_*.ps1
+build_*.ps1
+list_ftp_*.ps1
+sync_*.ps1

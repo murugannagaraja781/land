@@ -55,9 +55,15 @@ function saveEnvFile($path, $v) {
     $content .= "DEFAULT_CITY=\"" . ($v['DEFAULT_CITY'] ?? 'Tenkasi') . "\"\n\n";
 
     $content .= "# 6. Monetization & Razorpay Payment Gateway\n";
+    $content .= "RAZORPAY_MODE=\"" . ($v['RAZORPAY_MODE'] ?? 'test') . "\"\n";
     $content .= "RAZORPAY_ACCOUNT_ID=\"" . ($v['RAZORPAY_ACCOUNT_ID'] ?? 'acc_Tdw7B4Z0zFh95x') . "\"\n";
-    $content .= "RAZORPAY_KEY_ID=\"" . ($v['RAZORPAY_KEY_ID'] ?? 'acc_Tdw7B4Z0zFh95x') . "\"\n";
-    $content .= "RAZORPAY_KEY_SECRET=\"" . ($v['RAZORPAY_KEY_SECRET'] ?? 'Tdw7B4Z0zFh95x') . "\"\n";
+    $content .= "RAZORPAY_LIVE_KEY_ID=\"" . ($v['RAZORPAY_LIVE_KEY_ID'] ?? '') . "\"\n";
+    $content .= "RAZORPAY_LIVE_KEY_SECRET=\"" . ($v['RAZORPAY_LIVE_KEY_SECRET'] ?? '') . "\"\n";
+    $content .= "RAZORPAY_TEST_KEY_ID=\"" . ($v['RAZORPAY_TEST_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq') . "\"\n";
+    $content .= "RAZORPAY_TEST_KEY_SECRET=\"" . ($v['RAZORPAY_TEST_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe') . "\"\n";
+    $content .= "RAZORPAY_KEY_ID=\"" . ($v['RAZORPAY_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq') . "\"\n";
+    $content .= "RAZORPAY_KEY_SECRET=\"" . ($v['RAZORPAY_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe') . "\"\n";
+    $content .= "UPI_ID=\"" . ($v['UPI_ID'] ?? '9894174944@upi') . "\"\n";
     $content .= "CONTACT_UNLOCK_PRICE=" . ($v['CONTACT_UNLOCK_PRICE'] ?? 30) . "\n";
     $content .= "FREE_CONTACT_LIMIT=" . ($v['FREE_CONTACT_LIMIT'] ?? 3) . "\n";
     $content .= "UNLOCK_CONTACTS_COUNT=" . ($v['UNLOCK_CONTACTS_COUNT'] ?? 1) . "\n";
@@ -120,9 +126,15 @@ switch ($method) {
                 'DEFAULT_CITY' => $envData['DEFAULT_CITY'] ?? 'Tenkasi',
 
                 // Monetization & Razorpay
+                'RAZORPAY_MODE' => $envData['RAZORPAY_MODE'] ?? 'test',
                 'RAZORPAY_ACCOUNT_ID' => $envData['RAZORPAY_ACCOUNT_ID'] ?? 'acc_Tdw7B4Z0zFh95x',
-                'RAZORPAY_KEY_ID' => $envData['RAZORPAY_KEY_ID'] ?? 'acc_Tdw7B4Z0zFh95x',
-                'RAZORPAY_KEY_SECRET' => $envData['RAZORPAY_KEY_SECRET'] ?? 'Tdw7B4Z0zFh95x',
+                'RAZORPAY_LIVE_KEY_ID' => $envData['RAZORPAY_LIVE_KEY_ID'] ?? '',
+                'RAZORPAY_LIVE_KEY_SECRET' => $envData['RAZORPAY_LIVE_KEY_SECRET'] ?? '',
+                'RAZORPAY_TEST_KEY_ID' => $envData['RAZORPAY_TEST_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq',
+                'RAZORPAY_TEST_KEY_SECRET' => $envData['RAZORPAY_TEST_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe',
+                'RAZORPAY_KEY_ID' => $envData['RAZORPAY_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq',
+                'RAZORPAY_KEY_SECRET' => $envData['RAZORPAY_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe',
+                'UPI_ID' => $envData['UPI_ID'] ?? '9894174944@upi',
                 'CONTACT_UNLOCK_PRICE' => (int)($envData['CONTACT_UNLOCK_PRICE'] ?? 30),
                 'FREE_CONTACT_LIMIT' => (int)($envData['FREE_CONTACT_LIMIT'] ?? 3),
                 'UNLOCK_CONTACTS_COUNT' => (int)($envData['UNLOCK_CONTACTS_COUNT'] ?? 1),

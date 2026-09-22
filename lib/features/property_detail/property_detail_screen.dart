@@ -16,6 +16,8 @@ import '../../models/property.dart';
 import '../../state/app_state_providers.dart';
 import '../auth/login_screen.dart';
 import '../chat/conversation_screen.dart';
+import '../payment/payment_webview_screen.dart';
+import '../account/user_requests_screen.dart';
 import 'agent_profile_screen.dart';
 
 class PropertyDetailScreen extends ConsumerStatefulWidget {
@@ -44,7 +46,33 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
       if (p != null) {
         _logPropertyView(p);
       }
+      _syncAdAccess();
     });
+  }
+
+  Future<void> _syncAdAccess() async {
+    try {
+      final user = ref.read(userProfileProvider);
+      if (!user.isLoggedIn) return;
+      final userIdentifier = user.email.isNotEmpty ? user.email : user.phone;
+      final url = Uri.parse(
+        '${ApiConfig.instance.serverUrl}/users.php?action=get_ad_access&user_id=${Uri.encodeComponent(userIdentifier)}&user_email=${Uri.encodeComponent(user.email)}&user_phone=${Uri.encodeComponent(user.phone)}&property_id=${widget.propertyId}',
+      );
+      final res = await http.get(url).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          final storage = ref.read(localStorageServiceProvider);
+          final int viewed = data['ads_viewed'] ?? 0;
+          await storage.setFreeContactsUsed(viewed);
+          if (data['unlocked_properties'] is List) {
+            final List<String> list = (data['unlocked_properties'] as List).map((e) => e.toString()).toList();
+            await storage.setUnlockedPropertyIds(list);
+          }
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _logPropertyView(Property property) async {
@@ -119,7 +147,9 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
       );
     }
 
-    final totalImages = property.imageKeys.isNotEmpty ? property.imageKeys.length : 3;
+    final totalImages = property.imageUrls.isNotEmpty
+        ? property.imageUrls.length
+        : (property.imageKeys.isNotEmpty ? property.imageKeys.length : 3);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -142,10 +172,14 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                           setState(() => _currentImageIndex = index);
                         },
                         itemBuilder: (context, index) {
+                          final currentUrl = (property.imageUrls.isNotEmpty && index < property.imageUrls.length)
+                              ? property.imageUrls[index]
+                              : property.imageUrl;
                           return PropertyVisual(
                             propertyType: property.propertyType,
                             visualIndex: index,
                             customImageBase64: property.customImageBase64,
+                            imageUrl: currentUrl,
                             height: 320,
                             width: double.infinity,
                             borderRadius: BorderRadius.zero,
@@ -445,13 +479,13 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                               title: 'குடிநீர் வசதி',
                               value: property.waterSource!.split(' ').first,
                             ),
-                          if (property.hasTrees)
+                          if (property.propertyType == 'Farmland' && property.hasTrees)
                             _buildSpecBox(
                               icon: Icons.park_outlined,
                               title: 'மரங்கள்',
                               value: 'உண்டு (Yes)',
                             ),
-                          if (property.hasIncome)
+                          if (property.propertyType == 'Farmland' && property.hasIncome)
                             _buildSpecBox(
                               icon: Icons.currency_rupee_rounded,
                               title: 'மகசூல் வருமானம்',
@@ -472,8 +506,8 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                         ],
                       ),
 
-                      // Farmland extra highlights
-                      if (property.treesDetails != null && property.treesDetails!.isNotEmpty) ...[
+                      // Farmland extra highlights (Only for Farmland)
+                      if (property.propertyType == 'Farmland' && property.treesDetails != null && property.treesDetails!.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -497,7 +531,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                         ),
                       ],
 
-                      if (property.incomeDetails != null && property.incomeDetails!.isNotEmpty) ...[
+                      if (property.propertyType == 'Farmland' && property.incomeDetails != null && property.incomeDetails!.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -1776,6 +1810,21 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showSendRequestDialog(context, property),
+                  icon: const Icon(Icons.send_rounded, size: 16),
+                  label: const Text('உரிமையாளருக்கு தொடர்பு கோரிக்கை அனுப்புக'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary, width: 1.2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1783,7 +1832,104 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
     );
   }
 
-  void _handleContactAction(BuildContext context, Property property, String method) {
+  void _showSendRequestDialog(BuildContext context, Property property) {
+    final user = ref.read(userProfileProvider);
+    if (!user.isLoggedIn) {
+      _showLoginPrompt(context, property, 'Request');
+      return;
+    }
+
+    final targetPhone = property.contactPhone ?? property.agent.phone;
+    final targetName = property.agent.name;
+    final messageCtrl = TextEditingController(
+      text: 'வணக்கம், "${property.title}" சொத்து தொடர்பாக உங்களிடம் பேச விரும்புகிறேன்.',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.send_rounded, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('தொடர்பு கோரிக்கை', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'உரிமையாளர் $targetName அவர்களுக்கு நேரடி தொடர்பு கோரிக்கை அனுப்பப்படும். அவர் ஏற்றவுடன் உடனுக்குடன் உங்களுக்கு தகவல் வரும்.',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: messageCtrl,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'உங்கள் செய்தி (Message)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ரத்து'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref.read(userRequestsProvider.notifier).sendRequest(
+                receiverPhone: targetPhone,
+                receiverName: targetName,
+                propertyId: property.id,
+                propertyTitle: property.title,
+                message: messageCtrl.text.trim(),
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'கோரிக்கை வெற்றிகரமாக அனுப்பப்பட்டது! உரிமையாளர் ஏற்கும்போது அறிவிப்பு வரும்.'
+                          : 'கோரிக்கை அனுப்ப முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: success ? AppColors.emerald : AppColors.error,
+                    action: success
+                        ? SnackBarAction(
+                            label: 'பார்க்க',
+                            textColor: Colors.white,
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const UserRequestsScreen(initialTabIndex: 1)),
+                              );
+                            },
+                          )
+                        : null,
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: const Text('அனுப்புக (Send)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleContactAction(BuildContext context, Property property, String method) async {
     final user = ref.read(userProfileProvider);
     if (!user.isLoggedIn) {
       _showLoginPrompt(context, property, method);
@@ -1797,13 +1943,46 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
     }
 
     final storage = ref.read(localStorageServiceProvider);
-    final isUnlocked = storage.getUnlockedPropertyIds().contains(property.id);
-
-    if (isUnlocked) {
+    if (storage.getUnlockedPropertyIds().contains(property.id)) {
       _performContactAction(property, method);
       return;
     }
 
+    // Server-side authoritative ad access check
+    try {
+      final userIdentifier = user.email.isNotEmpty ? user.email : user.phone;
+      final url = Uri.parse(
+        '${ApiConfig.instance.serverUrl}/users.php?action=get_ad_access&user_id=${Uri.encodeComponent(userIdentifier)}&user_email=${Uri.encodeComponent(user.email)}&user_phone=${Uri.encodeComponent(user.phone)}&property_id=${property.id}',
+      );
+      final res = await http.get(url).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          final int viewed = data['ads_viewed'] ?? 0;
+          final int remaining = data['remaining_free'] ?? (3 - viewed).clamp(0, 3);
+          await storage.setFreeContactsUsed(viewed);
+          if (data['unlocked_properties'] is List) {
+            final List<String> list = (data['unlocked_properties'] as List).map((e) => e.toString()).toList();
+            await storage.setUnlockedPropertyIds(list);
+            if (list.contains(property.id) || data['already_unlocked'] == true) {
+              if (mounted) setState(() {});
+              _performContactAction(property, method);
+              return;
+            }
+          }
+
+          if (remaining > 0 || data['is_premium'] == true) {
+            if (mounted) _showFreeUnlockDialog(context, property, method, remaining);
+            return;
+          } else {
+            if (mounted) _showPaywallDialog(context, property, method);
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to local storage if network timeout
     final freeUsed = storage.getFreeContactsUsed();
     final freeRemaining = (3 - freeUsed).clamp(0, 3);
 
@@ -1915,8 +2094,39 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
+              final user = ref.read(userProfileProvider);
               final storage = ref.read(localStorageServiceProvider);
-              await storage.incrementFreeContactsUsed();
+
+              try {
+                final url = Uri.parse('${ApiConfig.instance.serverUrl}/users.php');
+                final userIdentifier = user.email.isNotEmpty ? user.email : user.phone;
+                final res = await http.post(
+                  url,
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({
+                    'action': 'unlock_ad',
+                    'user_id': userIdentifier,
+                    'user_email': user.email,
+                    'user_phone': user.phone,
+                    'property_id': property.id,
+                  }),
+                ).timeout(const Duration(seconds: 5));
+
+                if (res.statusCode == 200) {
+                  final data = jsonDecode(res.body);
+                  if (data['can_view'] == false || data['needs_payment'] == true) {
+                    await storage.setFreeContactsUsed(3);
+                    if (mounted) _showPaywallDialog(context, property, method);
+                    return;
+                  }
+                  if (data['ads_viewed'] != null) {
+                    await storage.setFreeContactsUsed(data['ads_viewed']);
+                  }
+                }
+              } catch (_) {
+                await storage.incrementFreeContactsUsed();
+              }
+
               await storage.addUnlockedProperty(property.id);
               await _logContactActivity(property, 'Free Contact Unlock ($method)');
               if (!mounted) return;
@@ -1937,58 +2147,311 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
 
   void _showPaywallDialog(BuildContext context, Property property, String method) {
     final messenger = ScaffoldMessenger.of(context);
+    final user = ref.read(userProfileProvider);
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
-            Icon(Icons.payment_rounded, color: Color(0xFFD97706)),
-            SizedBox(width: 8),
-            Text('பிரீமியம் தொடர்பு திறப்பு'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('நீங்கள் 3 இலவச தொடர்புகளையும் பயன்படுத்திவிட்டீர்கள்.'),
-            const SizedBox(height: 10),
-            Text(
-              'உரிமையாளர் (${property.agent.name}) தொடர்பு எண்ணைப் பெற ₹30 (சிறப்பு சலுகை: ₹10) கட்டணம் செலுத்த வேண்டும்.\n\nபணம் செலுத்தியவுடன் தொடர்பு விவரங்கள் உடனடியாக திறக்கப்படும்.',
-              style: const TextStyle(height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('ரத்து'),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 30,
+                offset: const Offset(0, 15),
+              ),
+            ],
           ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final storage = ref.read(localStorageServiceProvider);
-              await storage.addUnlockedProperty(property.id);
-              await _logContactActivity(property, 'Paid Contact Unlock (₹10) ($method)');
-              if (!mounted) return;
-              setState(() {});
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('🎉 ₹10 கட்டணம் பெறப்பட்டது! தொடர்பு எண் திறக்கப்பட்டது.'),
-                  backgroundColor: AppColors.success,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with gradient
+              Stack(
+                children: [
+                  Container(
+                    height: 90,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFD97706), Color(0xFFF59E0B), Color(0xFFB45309)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: InkWell(
+                      onTap: () => Navigator.pop(ctx),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          width: 62,
+                          height: 62,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.workspace_premium_rounded,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Content Body
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFCD34D)),
+                      ),
+                      child: const Text(
+                        '💎 பிரீமியம் தொடர்பு திறப்பு',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    Text(
+                      property.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+
+                    Text(
+                      '3 இலவச தொடர்புகள் முடிவடைந்தது. உரிமையாளர் (${property.agent.name}) தொடர்பு எண்ணை உடனே பெற மிகக் குறைந்த கட்டணம்:',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Price Card
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'கட்டணம்: ',
+                            style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                          ),
+                          const Text(
+                            '₹30 ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF94A3B8),
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            '₹10',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              '67% OFF',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Option 1: Razorpay Payment Gateway (Online - Inline Browser)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final buyerName = user.name.isNotEmpty ? user.name : 'Customer';
+                          final buyerPhone = user.phone.isNotEmpty ? user.phone : '9894174944';
+                          final checkoutUrl = 'https://tenkasidreams.com/checkout.php?property_id=${property.id}&buyer_name=${Uri.encodeComponent(buyerName)}&buyer_phone=$buyerPhone&amount=10&method=$method';
+                          
+                          // Open in inline WebView browser inside the app
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PaymentWebViewScreen(
+                                url: checkoutUrl,
+                                title: 'பாதுகாப்பான கட்டணம் (₹10)',
+                                propertyId: property.id,
+                              ),
+                            ),
+                          );
+
+                          // Also unlock locally for seamless UX
+                          final storage = ref.read(localStorageServiceProvider);
+                          await storage.addUnlockedProperty(property.id);
+                          await _logContactActivity(property, 'Paid Contact Unlock (Razorpay ₹10) ($method)');
+                          if (!mounted) return;
+                          setState(() {});
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('🎉 Razorpay பேமெண்ட் திறக்கப்பட்டது! எண் திறக்கப்படுகிறது.'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                          _performContactAction(property, method);
+                        },
+                        icon: const Icon(Icons.payment_rounded, size: 20),
+                        label: const Text(
+                          '💳 Razorpay மூலம் செலுத்த (₹10)',
+                          style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D47A1),
+                          foregroundColor: Colors.white,
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Option 2: Direct UPI (GPay / PhonePe / Paytm)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final upiUri = Uri.parse('upi://pay?pa=9894174944@upi&pn=TenkasiDreams&am=10&cu=INR&tn=Unlock_${property.id}');
+                          if (await canLaunchUrl(upiUri)) {
+                            await launchUrl(upiUri, mode: LaunchMode.externalApplication);
+                          } else {
+                            final checkoutUrl = 'https://tenkasidreams.com/checkout.php?property_id=${property.id}&amount=10';
+                            if (!mounted) return;
+                            await Navigator.of(ctx).push(
+                              MaterialPageRoute(
+                                builder: (_) => PaymentWebViewScreen(
+                                  url: checkoutUrl,
+                                  title: 'பாதுகாப்பான கட்டணம் (₹10)',
+                                  propertyId: property.id,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final storage = ref.read(localStorageServiceProvider);
+                          await storage.addUnlockedProperty(property.id);
+                          await _logContactActivity(property, 'Paid Contact Unlock (UPI ₹10) ($method)');
+                          if (!mounted) return;
+                          setState(() {});
+                          _performContactAction(property, method);
+                        },
+                        icon: const Icon(Icons.account_balance_wallet_rounded, size: 18, color: Color(0xFFD97706)),
+                        label: const Text(
+                          '⚡ GPay / PhonePe / UPI (₹10)',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFFD97706)),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFD97706), width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Not now button
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'பிறகு செய்கிறேன் (Cancel)',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
                 ),
-              );
-              _performContactAction(property, method);
-            },
-            icon: const Icon(Icons.lock_open_rounded, size: 16),
-            label: const Text('💳 ₹10 செலுத்தி திறக்க'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2025,7 +2488,7 @@ class _PropertyDetailScreenState extends ConsumerState<PropertyDetailScreen> {
 
   Future<void> _launchWhatsApp(String phone, String title, String agentName) async {
     final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    final text = Uri.encodeComponent('வணக்கம் $agentName, தென்காசி ட்ரீம்ஸ் ஆப்பில் பதிவிட்டுள்ள "$title" சொத்து பற்றி அறிய விரும்புகிறேன்.');
+    final text = Uri.encodeComponent('பதிவு செய்தமைக்கு நன்றி');
     final uri = Uri.parse('https://wa.me/$cleanPhone?text=$text');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

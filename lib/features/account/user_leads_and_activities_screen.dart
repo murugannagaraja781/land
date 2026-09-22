@@ -37,14 +37,29 @@ class _UserLeadsAndActivitiesScreenState extends ConsumerState<UserLeadsAndActiv
   }
 
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
     final user = ref.read(userProfileProvider);
     final userPhone = user.phone.trim();
+    final userEmail = user.email.trim();
     final baseUrl = ApiConfig.instance.serverUrl;
 
+    if (!user.isLoggedIn || (userPhone.isEmpty && userEmail.isEmpty)) {
+      if (mounted) {
+        setState(() {
+          _myLeads = [];
+          _myViewedContacts = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
     try {
-      // 1. Fetch leads on my properties (where seller_phone = userPhone)
-      final leadsUri = Uri.parse('$baseUrl/activities.php?seller_phone=${Uri.encodeComponent(userPhone)}');
+      final cleanUserP = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // 1. Fetch leads on my properties
+      final leadsUri = Uri.parse('$baseUrl/activities.php?seller_phone=${Uri.encodeComponent(cleanUserP)}&seller_email=${Uri.encodeComponent(userEmail)}');
       final leadsRes = await http.get(leadsUri).timeout(const Duration(seconds: 5));
       if (leadsRes.statusCode == 200) {
         final data = jsonDecode(leadsRes.body);
@@ -53,8 +68,8 @@ class _UserLeadsAndActivitiesScreenState extends ConsumerState<UserLeadsAndActiv
         }
       }
 
-      // 2. Fetch contacts I viewed (where user_phone = userPhone)
-      final myUri = Uri.parse('$baseUrl/activities.php?user_phone=${Uri.encodeComponent(userPhone)}');
+      // 2. Fetch contacts I viewed
+      final myUri = Uri.parse('$baseUrl/activities.php?user_phone=${Uri.encodeComponent(cleanUserP)}&user_email=${Uri.encodeComponent(userEmail)}');
       final myRes = await http.get(myUri).timeout(const Duration(seconds: 5));
       if (myRes.statusCode == 200) {
         final data = jsonDecode(myRes.body);

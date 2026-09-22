@@ -22,7 +22,7 @@ class MyAdsScreen extends ConsumerStatefulWidget {
 class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<String> _tabs = ['Active', 'Pending', 'Sold', 'Drafts'];
+  final List<String> _tabs = ['All', 'Active', 'Pending', 'Rejected', 'Sold'];
 
   void _handlePostAdClick() {
     final user = ref.read(userProfileProvider);
@@ -52,6 +52,9 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(propertiesProvider.notifier).syncWithServer();
+    });
   }
 
   @override
@@ -62,12 +65,43 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final myAds = ref.watch(propertiesProvider).where((p) => p.isUserPosted).toList();
+    final userProfile = ref.watch(userProfileProvider);
+    final cleanUserPhone = userProfile.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final myAds = ref.watch(propertiesProvider).where((p) {
+      if (!userProfile.isLoggedIn) return false;
+
+      // 1. Strict primary match: Match by Google email
+      final hasProfileEmail = userProfile.email.trim().isNotEmpty;
+      final hasAgentEmail = p.agent.email.trim().isNotEmpty;
+
+      if (hasProfileEmail && hasAgentEmail) {
+        return p.agent.email.trim().toLowerCase() == userProfile.email.trim().toLowerCase();
+      }
+
+      // 2. Secondary match: Match by phone ONLY IF email does not belong to someone else
+      if (cleanUserPhone.length >= 10) {
+        if (hasProfileEmail && hasAgentEmail && p.agent.email.trim().toLowerCase() != userProfile.email.trim().toLowerCase()) {
+          return false;
+        }
+        final userSuffix = cleanUserPhone.substring(cleanUserPhone.length - 10);
+        final cleanContact = (p.contactPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+        final cleanAgentPhone = p.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cleanContact.length >= 10 && cleanContact.endsWith(userSuffix)) {
+          return true;
+        }
+        if (cleanAgentPhone.length >= 10 && cleanAgentPhone.endsWith(userSuffix)) {
+          return true;
+        }
+      }
+
+      return false;
+    }).toList();
 
     // Stats calculations
-    final activeCount = myAds.where((p) => p.status == 'active').length;
-    final pendingCount = myAds.where((p) => p.status == 'pending').length;
-    final soldCount = myAds.where((p) => p.status == 'sold').length;
+    final activeCount = myAds.where((p) => p.status.toLowerCase() == 'active' || p.status.toLowerCase() == 'published').length;
+    final pendingCount = myAds.where((p) => p.status.toLowerCase() == 'pending').length;
+    final rejectedCount = myAds.where((p) => p.status.toLowerCase() == 'rejected').length;
+    final soldCount = myAds.where((p) => p.status.toLowerCase() == 'sold').length;
     final totalViews = myAds.fold<int>(0, (sum, p) => sum + p.views);
     final totalEnquiries = myAds.fold<int>(0, (sum, p) => sum + p.enquiries);
 
@@ -86,11 +120,13 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
           indicatorColor: AppColors.primary,
           indicatorWeight: 3,
           labelStyle: AppTextStyles.labelLarge,
+          isScrollable: true,
           tabs: [
-            Tab(text: 'நேரலையில் ($activeCount)'),
-            Tab(text: 'பிராசஸிங் ($pendingCount)'),
+            Tab(text: 'அனைத்தும் (${myAds.length})'),
+            Tab(text: 'நேரலை ($activeCount)'),
+            Tab(text: 'காத்திருப்பு ($pendingCount)'),
+            Tab(text: 'நிராகரிப்பு ($rejectedCount)'),
             Tab(text: 'விற்பனை ($soldCount)'),
-            const Tab(text: 'வரைவு (0)'),
           ],
         ),
       ),
@@ -104,41 +140,96 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
           style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
       ),
-      body: Column(
-        children: [
-          // Dashboard Summary Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.borderLight)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem('Total Listings', '${myAds.length}', Icons.apartment_rounded),
-                _buildDivider(),
-                _buildStatItem('Total Views', '$totalViews', Icons.visibility_outlined),
-                _buildDivider(),
-                _buildStatItem('Total Enquiries', '$totalEnquiries', Icons.chat_bubble_outline_rounded),
-              ],
-            ),
-          ),
+      body: !userProfile.isLoggedIn
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.lock_person_rounded, size: 56, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'உங்கள் விளம்பரங்களை காண உள்நுழையவும்',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sign in with your Google account to view, manage, and edit your property listings.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.login_rounded, size: 20),
+                      label: const Text('Google Login / உள்நுழைக', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: () async {
+                await ref.read(propertiesProvider.notifier).syncWithServer();
+              },
+              child: Column(
+                children: [
+                  // Dashboard Summary Banner
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      border: Border(bottom: BorderSide(color: AppColors.borderLight)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem('Total Listings', '${myAds.length}', Icons.apartment_rounded),
+                        _buildDivider(),
+                        _buildStatItem('Total Views', '$totalViews', Icons.visibility_outlined),
+                        _buildDivider(),
+                        _buildStatItem('Total Enquiries', '$totalEnquiries', Icons.chat_bubble_outline_rounded),
+                      ],
+                    ),
+                  ),
 
-          // Tab Views
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAdsList(myAds.where((p) => p.status == 'active').toList(), 'active'),
-                _buildAdsList(myAds.where((p) => p.status == 'pending').toList(), 'pending'),
-                _buildAdsList(myAds.where((p) => p.status == 'sold').toList(), 'sold'),
-                _buildAdsList([], 'draft'),
-              ],
+                  // Tab Views (5 Tabs: All, Approved, Pending, Rejected, Sold)
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildAdsList(myAds, 'all'),
+                        _buildAdsList(myAds.where((p) => p.status.toLowerCase() == 'active' || p.status.toLowerCase() == 'published').toList(), 'active'),
+                        _buildAdsList(myAds.where((p) => p.status.toLowerCase() == 'pending').toList(), 'pending'),
+                        _buildAdsList(myAds.where((p) => p.status.toLowerCase() == 'rejected').toList(), 'rejected'),
+                        _buildAdsList(myAds.where((p) => p.status.toLowerCase() == 'sold').toList(), 'sold'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -216,6 +307,8 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
                 // Image
                 PropertyVisual(
                   propertyType: ad.propertyType,
+                  customImageBase64: ad.customImageBase64,
+                  imageUrl: ad.primaryImageUrl,
                   width: 95,
                   height: 95,
                   borderRadius: BorderRadius.circular(12),
@@ -368,8 +461,36 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '⏳ பிராசஸிங் (Under Review): நிர்வாகி சரிபார்த்தவுடன் உங்கள் விளம்பரம் நேரலையாக தோன்றும்.',
-                      style: TextStyle(fontSize: 11.5, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                      '⏳ காத்திருப்பு (Waiting for Approval): Super Admin சரிபார்த்தவுடன் உங்கள் விளம்பரம் நேரலையாக தோன்றும்.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Prominent notice for Rejected ads
+          if (ad.status.toLowerCase() == 'rejected') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
+                ),
+                border: Border(top: BorderSide(color: Color(0xFFFECACA))),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.cancel_rounded, size: 16, color: Color(0xFFDC2626)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '❌ இந்த விளம்பரம் Super Admin-ஆல் நிராகரிக்கப்பட்டது. திருத்தி மீண்டும் சமர்ப்பிக்கவும்.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF991B1B), fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -388,19 +509,25 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
 
     switch (status.toLowerCase()) {
       case 'active':
-        bg = AppColors.successLight;
-        text = AppColors.success;
-        label = 'நேரலையில் (Active)';
+      case 'published':
+        bg = const Color(0xFFDCFCE7);
+        text = const Color(0xFF16A34A);
+        label = '✅ ஒப்புதல் (Approved)';
         break;
       case 'pending':
         bg = const Color(0xFFFEF3C7);
         text = const Color(0xFFD97706);
-        label = '⏳ பிராசஸிங் (Processing)';
+        label = '⏳ காத்திருப்பு (Pending)';
+        break;
+      case 'rejected':
+        bg = const Color(0xFFFEE2E2);
+        text = const Color(0xFFDC2626);
+        label = '❌ நிராகரிப்பு (Rejected)';
         break;
       case 'sold':
         bg = const Color(0xFFECEFF1);
         text = const Color(0xFF455A64);
-        label = 'விற்பனையானது (Sold)';
+        label = '🏷️ விற்பனையானது (Sold)';
         break;
       default:
         bg = AppColors.surfaceAlt;
@@ -413,10 +540,11 @@ class _MyAdsScreenState extends ConsumerState<MyAdsScreen> with SingleTickerProv
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: text.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
-        style: TextStyle(color: text, fontSize: 10.5, fontWeight: FontWeight.w700),
+        style: TextStyle(color: text, fontSize: 10.5, fontWeight: FontWeight.w800),
       ),
     );
   }

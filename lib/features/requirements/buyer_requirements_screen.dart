@@ -185,33 +185,46 @@ class _BuyerRequirementsScreenState extends ConsumerState<BuyerRequirementsScree
 
           // Requirements List
           Expanded(
-            child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+            child: RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: () async {
+                ref.read(buyerRequirementsProvider.notifier).refresh();
+              },
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textMuted),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'இந்த பிரிவில் தேவைகள் ஏதும் இல்லை',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF475569)),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton(
-                          onPressed: () => _openPostRequirementModal(context),
-                          child: const Text('முதல் தேவையை பதிவு செய்க'),
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textMuted),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'இந்த பிரிவில் தேவைகள் ஏதும் இல்லை',
+                                style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton(
+                                onPressed: () => _openPostRequirementModal(context),
+                                child: const Text('முதல் தேவையை பதிவு செய்க'),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                      padding: const EdgeInsets.all(14),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final req = filtered[index];
+                        return _buildRequirementCard(req);
+                      },
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(14),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final req = filtered[index];
-                      return _buildRequirementCard(req);
-                    },
-                  ),
+            ),
           ),
         ],
       ),
@@ -501,133 +514,139 @@ class _PostRequirementModalState extends State<_PostRequirementModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'உங்கள் தேவை பதிவு செய்க',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16;
+
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: bottomPadding,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'உங்கள் தேவை பதிவு செய்க',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'உங்கள் பெயர் (Name)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_outline),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'மொபைல் எண் (WhatsApp Mobile)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.phone_outlined),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'உங்கள் பெயர் (Name)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_outline),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'மொபைல் எண் (WhatsApp Mobile)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.phone_outlined),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _propertyType,
+                decoration: const InputDecoration(
+                  labelText: 'தேவையான சொத்து வகை (Type)',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Land', child: Text('நிலம் (Land / Plot)')),
+                  DropdownMenuItem(value: 'Farmland', child: Text('தோட்டம் (Farmland)')),
+                  DropdownMenuItem(value: 'House', child: Text('வீடு (House / Villa)')),
+                  DropdownMenuItem(value: 'Shop', child: Text('கடை / அலுவலகம் (Shop/Office)')),
+                  DropdownMenuItem(value: 'Rental', child: Text('வாடகைக்கு (Rental / Lease)')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _propertyType = val);
+                },
               ),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: _propertyType,
-              decoration: const InputDecoration(
-                labelText: 'தேவையான சொத்து வகை (Type)',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  labelText: 'விரும்பும் ஊர் / பகுதி (Location)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                ),
               ),
-              items: const [
-                DropdownMenuItem(value: 'Land', child: Text('நிலம் (Land / Plot)')),
-                DropdownMenuItem(value: 'Farmland', child: Text('தோட்டம் (Farmland)')),
-                DropdownMenuItem(value: 'House', child: Text('வீடு (House / Villa)')),
-                DropdownMenuItem(value: 'Shop', child: Text('கடை / அலுவலகம் (Shop/Office)')),
-                DropdownMenuItem(value: 'Rental', child: Text('வாடகைக்கு (Rental / Lease)')),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _propertyType = val);
-              },
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'விரும்பும் ஊர் / பகுதி (Preferred Location)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.location_on_outlined),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _budgetMaxController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'அதிகபட்ச பட்ஜெட் ₹',
-                      border: OutlineInputBorder(),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _budgetMaxController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'அதிகபட்ச பட்ஜெட் (₹)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _sizeController,
-                    decoration: const InputDecoration(
-                      labelText: 'அளவு (Cent/குழி/BHK)',
-                      border: OutlineInputBorder(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _sizeController,
+                      decoration: const InputDecoration(
+                        labelText: 'அளவு (Cent/BHK)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _descController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'கூடுதல் விவரங்கள் (Details / Requirements)',
-                border: OutlineInputBorder(),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text(
-                  'தேவையை சமர்ப்பிக்க (Post Requirement)',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _descController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'கூடுதல் விவரங்கள் (Details)',
+                  border: OutlineInputBorder(),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text(
+                    'தேவையை சமர்ப்பிக்க (Submit)',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

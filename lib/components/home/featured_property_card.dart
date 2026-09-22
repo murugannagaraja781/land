@@ -82,6 +82,7 @@ class FeaturedPropertyCard extends ConsumerWidget {
                     propertyType: property.propertyType,
                     visualIndex: property.id.hashCode.abs() % 4,
                     customImageBase64: property.customImageBase64,
+                    imageUrl: property.primaryImageUrl,
                     height: 125,
                     width: width,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),

@@ -12,19 +12,24 @@ class PropertyRepository {
 
   PropertyRepository(this._storage);
 
+  DateTime? _lastSyncTime;
+
   /// Synchronize properties from remote server when online mode is active
-  Future<bool> syncWithRemoteServer() async {
+  /// Avoids unwanted API calls if data was fetched within the last 3 minutes
+  Future<bool> syncWithRemoteServer({bool force = false}) async {
     if (!ApiConfig.instance.isOnlineMode) return false;
+
+    // Avoid unwanted API calls: if synced less than 3 minutes ago, return cached data
+    if (!force && _lastSyncTime != null && DateTime.now().difference(_lastSyncTime!).inMinutes < 3) {
+      return true;
+    }
+
     try {
       final remoteProperties = await _apiService.fetchProperties();
-      if (remoteProperties.isNotEmpty) {
-        // Cache remote properties into local storage
-        for (final prop in remoteProperties) {
-          await _storage.updateProperty(prop);
-        }
-        return true;
-      }
-      return false;
+      // Cache remote properties into local storage (even if empty, to clear stale data)
+      await _storage.saveProperties(remoteProperties);
+      _lastSyncTime = DateTime.now();
+      return true;
     } catch (e) {
       debugPrint('Sync with remote server failed, falling back to local cache: $e');
       return false;
@@ -93,8 +98,31 @@ class PropertyRepository {
     return getAllProperties().where((p) => favorites.contains(p.id)).toList();
   }
 
-  List<Property> getUserPostedProperties({String? status}) {
-    final all = getAllProperties().where((p) => p.isUserPosted).toList();
+  List<Property> getUserPostedProperties({String? status, String? userPhone, String? userEmail}) {
+    final all = getAllProperties().where((p) {
+      if (!p.isUserPosted) return false;
+
+      // 1. Strict match by Google email
+      if (userEmail != null && userEmail.trim().isNotEmpty && p.agent.email.trim().isNotEmpty) {
+        return p.agent.email.trim().toLowerCase() == userEmail.trim().toLowerCase();
+      }
+
+      // 2. Match by verified phone number (ONLY if email does not mismatch)
+      if (userPhone != null && userPhone.isNotEmpty) {
+        if (userEmail != null && userEmail.trim().isNotEmpty && p.agent.email.trim().isNotEmpty && p.agent.email.trim().toLowerCase() != userEmail.trim().toLowerCase()) {
+          return false;
+        }
+        final cleanTarget = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
+        final pPhone = (p.contactPhone ?? p.agent.phone).replaceAll(RegExp(r'[^0-9]'), '');
+        if (cleanTarget.length >= 10 && pPhone.length >= 10) {
+          final targetSuffix = cleanTarget.substring(cleanTarget.length - 10);
+          final pSuffix = pPhone.substring(pPhone.length - 10);
+          return targetSuffix == pSuffix;
+        }
+      }
+
+      return false;
+    }).toList();
     if (status == null || status == 'all') return all;
     return all.where((p) => p.status.toLowerCase() == status.toLowerCase()).toList();
   }

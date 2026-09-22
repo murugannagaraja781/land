@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -5,32 +8,63 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.antigravity.realestate.real_estate_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    val isAdminBuild = project.hasProperty("adminApp") || 
+                       (project.findProperty("target")?.toString()?.contains("admin_main") == true)
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.antigravity.realestate.real_estate_app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        if (isAdminBuild) {
+            applicationId = "com.antigravity.realestate.admin"
+            manifestPlaceholders["appName"] = "Tenkasi Dreams Admin"
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_admin"
+        } else {
+            applicationId = "com.antigravity.realestate.real_estate_app"
+            manifestPlaceholders["appName"] = "Tenkasi Dreams Land"
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
+        }
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val keyFile = keystoreProperties.getProperty("storeFile") ?: "upload-keystore.jks"
+            storeFile = file(keyFile)
+            storePassword = keystoreProperties.getProperty("storePassword") ?: "TenkasiDreams@2026"
+            keyAlias = keystoreProperties.getProperty("keyAlias") ?: "upload"
+            keyPassword = keystoreProperties.getProperty("keyPassword") ?: "TenkasiDreams@2026"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            ndk {
+                debugSymbolLevel = "none"
+            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

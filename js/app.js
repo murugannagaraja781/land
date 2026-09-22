@@ -372,9 +372,11 @@ function getPropertyImage(p) {
   const type = (p.propertyType || '').toLowerCase();
   if (type.includes('house') || type.includes('villa')) return 'assets/images/rec_house.png';
   if (type.includes('land') || type.includes('plot')) return 'assets/images/rec_land.png';
-  if (type.includes('farm') || type.includes('garden')) return 'assets/images/rec_farm.png';
+  if (type.includes('farm') || type.includes('garden') || type.includes('தோட்டம்')) return 'assets/images/rec_farm.png';
   if (type.includes('apartment') || type.includes('flat')) return 'assets/images/rec_apartment.png';
-  return 'assets/images/cat_house.png';
+  if (type.includes('rental') || type.includes('lease') || type.includes('வாடகை')) return 'assets/images/rec_rental.png';
+  if (type.includes('shop') || type.includes('commercial') || type.includes('office')) return 'assets/images/cat_shop.png';
+  return 'assets/images/rec_house.png';
 }
 
 function buildCardHtml(p, isFeaturedCard = false) {
@@ -967,12 +969,6 @@ function openGoogleLoginModal(reason = '') {
           <span style="font-size: 14.5px; font-weight: 800; color: #1F2937;">Continue with Google (Gmail)</span>
         </button>
 
-        <div style="margin-top: 14px; text-align: center;">
-          <button onclick="handleGoogleSignInPrompt()" style="background: transparent; border: none; color: #0284C7; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline;">
-            ⚡ அல்லது Gmail முகவரி உள்ளிட்டு உள்நுழைக
-          </button>
-        </div>
-
         <div style="font-size: 11px; color: #94A3B8; margin-top: 16px; line-height: 1.4;">
           பாதுகாப்பான Firebase & Google உள்நுழைவு. முதல் 3 தொடர்புகள் இலவசம்.
         </div>
@@ -1021,24 +1017,29 @@ function triggerFirebaseGoogleSignIn() {
         if (error.code === 'auth/popup-closed-by-user') {
           return;
         }
-        // If domain not authorized yet or popup blocked, fall back gracefully to prompt
-        handleGoogleSignInPrompt();
+        if (error.code === 'auth/unauthorized-domain') {
+          const fallback = confirm(
+            '⚠️ Firebase அங்கீகரிப்பு அறிவிப்பு:\n\n' +
+            'உங்கள் டொமைன் (tenkasidreams.com) இன்னும் Firebase Console-ல் "Authorized domains" பட்டியலில் சேர்க்கப்படவில்லை.\n\n' +
+            'இதை சரிசெய்ய:\n' +
+            'Firebase Console -> Authentication -> Settings -> Authorized domains -> Add "tenkasidreams.com"\n\n' +
+            'தற்போது நீங்கள் சோதனை செய்ய உங்கள் Gmail முகவரியை நேரடியாக உள்ளிட்டு உள்நுழைய விரும்புகிறீர்களா?'
+          );
+          if (fallback) {
+            const emailInput = prompt('உங்கள் Gmail முகவரியை உள்ளிடவும் (எ.கா: yourname@gmail.com):', 'user@gmail.com');
+            if (emailInput && emailInput.includes('@')) {
+              const namePart = emailInput.split('@')[0];
+              const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+              handleGoogleSignInWeb(emailInput.trim(), formattedName, '', '');
+            }
+          }
+          return;
+        }
+        alert('Google உள்நுழைவில் பிழை: ' + (error.message || 'தயவுசெய்து மீண்டும் முயற்சிக்கவும்.'));
       });
   } else {
-    handleGoogleSignInPrompt();
+    alert('Firebase Authentication ஏற்றப்படவில்லை. பக்கத்தை ரீலோட் செய்யவும்.');
   }
-}
-
-function handleGoogleSignInPrompt() {
-  const defaultEmail = 'user.buyer@gmail.com';
-  const email = prompt('உங்கள் Gmail முகவரியை உறுதிப்படுத்தவும் (Enter or confirm your Gmail address):', defaultEmail);
-  if (!email || !email.trim()) return;
-
-  const cleanEmail = email.trim();
-  const rawName = cleanEmail.split('@')[0].replace(/[._]/g, ' ');
-  const capitalizedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-
-  handleGoogleSignInWeb(cleanEmail, capitalizedName);
 }
 
 function syncUserToFirestoreWeb(user) {

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/events.php';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 // Helper to get all properties - DB first, JSON fallback
@@ -12,6 +13,54 @@ function getPropertiesData() {
             if ($rows !== false) {
                 $properties = [];
                 foreach ($rows as $r) {
+                    $rawImageUrls = json_decode($r['imageUrls'] ?? '[]', true);
+                    if (!is_array($rawImageUrls)) {
+                        if (!empty($r['imageUrls']) && (str_starts_with($r['imageUrls'], '/9j/') || str_starts_with($r['imageUrls'], 'data:image/') || strlen($r['imageUrls']) > 500)) {
+                            $uploadDir = __DIR__ . '/uploads/props';
+                            if (!file_exists($uploadDir)) @mkdir($uploadDir, 0777, true);
+                            $cleanBase64 = preg_replace('/^data:image\/[a-zA-Z0-9+]+;base64,/', '', $r['imageUrls']);
+                            $decoded = base64_decode($cleanBase64);
+                            $filename = 'prop_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $r['id'] ?? 'unknown') . '_img.jpg';
+                            @file_put_contents($uploadDir . '/' . $filename, $decoded);
+                            $serverHost = $_SERVER['HTTP_HOST'] ?? 'tenkasidreams.com';
+                            $publicUrl = 'https://' . $serverHost . '/api/uploads/props/' . $filename;
+                            $rawImageUrls = [$publicUrl];
+                            try {
+                                $pdo->exec("UPDATE `properties` SET `imageUrls` = " . $pdo->quote(json_encode([$publicUrl])) . " WHERE `id` = " . $pdo->quote($r['id']));
+                            } catch (Exception $e) {}
+                        } else {
+                            $rawImageUrls = [];
+                        }
+                    } else {
+                        // Check if any element in array is raw base64
+                        $updatedArray = [];
+                        $hasBase64 = false;
+                        foreach ($rawImageUrls as $idx => $u) {
+                            if (is_string($u) && (str_starts_with($u, '/9j/') || str_starts_with($u, 'data:image/') || strlen($u) > 500)) {
+                                $uploadDir = __DIR__ . '/uploads/props';
+                                if (!file_exists($uploadDir)) @mkdir($uploadDir, 0777, true);
+                                $cleanBase64 = preg_replace('/^data:image\/[a-zA-Z0-9+]+;base64,/', '', $u);
+                                $decoded = base64_decode($cleanBase64);
+                                $filename = 'prop_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $r['id'] ?? 'unknown') . '_' . $idx . '.jpg';
+                                @file_put_contents($uploadDir . '/' . $filename, $decoded);
+                                $serverHost = $_SERVER['HTTP_HOST'] ?? 'tenkasidreams.com';
+                                $publicUrl = 'https://' . $serverHost . '/api/uploads/props/' . $filename;
+                                $updatedArray[] = $publicUrl;
+                                $hasBase64 = true;
+                            } else {
+                                $updatedArray[] = $u;
+                            }
+                        }
+                        if ($hasBase64) {
+                            $rawImageUrls = $updatedArray;
+                            try {
+                                $pdo->exec("UPDATE `properties` SET `imageUrls` = " . $pdo->quote(json_encode($rawImageUrls)) . " WHERE `id` = " . $pdo->quote($r['id']));
+                            } catch (Exception $e) {}
+                        }
+                    }
+
+                    $firstImageUrl = count($rawImageUrls) > 0 ? $rawImageUrls[0] : null;
+
                     $prop = [
                         'id' => $r['id'],
                         'title' => $r['title'] ?? '',
@@ -56,7 +105,9 @@ function getPropertiesData() {
                         'sellerName' => $r['sellerName'] ?? 'Direct Owner',
                         'sellerPhone' => $r['sellerPhone'] ?? '+91 98941 74944',
                         'imageKeys' => json_decode($r['imageKeys'] ?? '[]', true) ?: [],
-                        'imageUrls' => json_decode($r['imageUrls'] ?? '[]', true) ?: [],
+                        'imageUrls' => $rawImageUrls,
+                        'imageUrl' => $firstImageUrl,
+                        'customImageBase64' => (!empty($_GET['id'])) ? ($r['customImageBase64'] ?? null) : null,
                         'amenities' => json_decode($r['amenities'] ?? '[]', true) ?: [],
                         'agent' => [
                             'id' => $r['agent_id'] ?? 'admin_agent',
@@ -94,12 +145,12 @@ function savePropertyToDb($prop) {
     try {
         $agent = $prop['agent'] ?? [];
         $sql = "INSERT INTO `properties` 
-            (`id`, `title`, `description`, `price`, `location`, `city`, `propertyType`, `areaSqFt`, `superBuiltUpSqFt`, `carpetAreaSqFt`, `bedrooms`, `bathrooms`, `furnishingStatus`, `facing`, `floor`, `maintenanceMonthly`, `landmark`, `posterType`, `landUnit`, `landUnitValue`, `landFeatures`, `approvalType`, `isBankLoanAvailable`, `isPriceNegotiable`, `waterSource`, `hasLift`, `hasTrees`, `treesDetails`, `hasIncome`, `incomeDetails`, `isLease`, `rentalSubType`, `advanceAmount`, `commercialAreaType`, `hasTable`, `hasFan`, `hasWaterSupply`, `hasShutter`, `powerPhase`, `contactPhone`, `sellerName`, `sellerPhone`, `imageKeys`, `imageUrls`, `amenities`, `agent_id`, `agent_name`, `agent_agencyName`, `agent_phone`, `agent_email`, `postedDate`, `status`, `isFavorite`, `isVerified`, `isFeatured`, `isUserPosted`, `views`, `enquiries`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (`id`, `title`, `description`, `price`, `location`, `city`, `propertyType`, `areaSqFt`, `superBuiltUpSqFt`, `carpetAreaSqFt`, `bedrooms`, `bathrooms`, `furnishingStatus`, `facing`, `floor`, `maintenanceMonthly`, `landmark`, `posterType`, `landUnit`, `landUnitValue`, `landFeatures`, `approvalType`, `isBankLoanAvailable`, `isPriceNegotiable`, `waterSource`, `hasLift`, `hasTrees`, `treesDetails`, `hasIncome`, `incomeDetails`, `isLease`, `rentalSubType`, `advanceAmount`, `commercialAreaType`, `hasTable`, `hasFan`, `hasWaterSupply`, `hasShutter`, `powerPhase`, `contactPhone`, `sellerName`, `sellerPhone`, `imageKeys`, `imageUrls`, `amenities`, `agent_id`, `agent_name`, `agent_agencyName`, `agent_phone`, `agent_email`, `postedDate`, `status`, `isFavorite`, `isVerified`, `isFeatured`, `isUserPosted`, `isPremium`, `views`, `enquiries`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 `title`=VALUES(`title`), `description`=VALUES(`description`), `price`=VALUES(`price`),
                 `location`=VALUES(`location`), `status`=VALUES(`status`), `isVerified`=VALUES(`isVerified`),
-                `isFeatured`=VALUES(`isFeatured`), `views`=VALUES(`views`), `enquiries`=VALUES(`enquiries`)";
+                `isFeatured`=VALUES(`isFeatured`), `isPremium`=VALUES(`isPremium`), `views`=VALUES(`views`), `enquiries`=VALUES(`enquiries`)";
         
         $stmt = $pdo->prepare($sql);
         return $stmt->execute([
@@ -142,23 +193,24 @@ function savePropertyToDb($prop) {
             !empty($prop['hasWaterSupply']) ? 1 : 0,
             !empty($prop['hasShutter']) ? 1 : 0,
             $prop['powerPhase'] ?? null,
-            $prop['contactPhone'] ?? '+91 98941 74944',
+            $prop['contactPhone'] ?? '',
             $prop['sellerName'] ?? 'Direct Owner',
-            $prop['sellerPhone'] ?? '+91 98941 74944',
+            $prop['sellerPhone'] ?? '',
             json_encode($prop['imageKeys'] ?? [], JSON_UNESCAPED_UNICODE),
             json_encode($prop['imageUrls'] ?? [], JSON_UNESCAPED_UNICODE),
             json_encode($prop['amenities'] ?? [], JSON_UNESCAPED_UNICODE),
             $agent['id'] ?? 'admin_agent',
             $agent['name'] ?? $prop['sellerName'] ?? 'Direct Owner',
             $agent['agencyName'] ?? 'நேரடி உரிமையாளர் (Direct Owner)',
-            $agent['phone'] ?? $prop['sellerPhone'] ?? '+91 98941 74944',
-            $agent['email'] ?? 'tenkasidreams@gmail.com',
+            $agent['phone'] ?? $prop['sellerPhone'] ?? '',
+            $agent['email'] ?? $prop['sellerEmail'] ?? 'user@tenkasidreams.com',
             $prop['postedDate'] ?? date('Y-m-d H:i:s'),
             $prop['status'] ?? 'active',
             !empty($prop['isFavorite']) ? 1 : 0,
             isset($prop['isVerified']) ? ($prop['isVerified'] ? 1 : 0) : 1,
             !empty($prop['isFeatured']) ? 1 : 0,
             !empty($prop['isUserPosted']) ? 1 : 0,
+            !empty($prop['isPremium']) ? 1 : 0,
             $prop['views'] ?? 0,
             $prop['enquiries'] ?? 0
         ]);
@@ -246,8 +298,88 @@ function syncNotificationStatus($propertyId, $newStatus) {
     }
 }
 
+// Helper to process and persist uploaded property image (Base64 -> File URL)
+function processPropertyImage($input, $propertyId) {
+    $rawList = is_array($input['imageUrls'] ?? null) ? $input['imageUrls'] : (!empty($input['imageUrl']) ? [$input['imageUrl']] : (!empty($input['images']) && is_array($input['images']) ? $input['images'] : []));
+    $customBase64 = $input['customImageBase64'] ?? $input['imageBase64'] ?? null;
+    if (!empty($customBase64) && !in_array($customBase64, $rawList)) {
+        array_unshift($rawList, $customBase64);
+    }
+
+    $uploadDir = __DIR__ . '/uploads/props';
+    if (!file_exists($uploadDir)) {
+        @mkdir($uploadDir, 0777, true);
+    }
+    $serverHost = $_SERVER['HTTP_HOST'] ?? 'tenkasidreams.com';
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'https';
+    $cleanId = preg_replace('/[^a-zA-Z0-9_-]/', '', $propertyId);
+
+    $finalUrls = [];
+    $imgIndex = 0;
+
+    foreach ($rawList as $item) {
+        if (!is_string($item) || empty($item)) continue;
+
+        if (str_starts_with($item, 'data:image/')) {
+            try {
+                $cleanBase64 = preg_replace('/^data:image\/[a-zA-Z0-9+]+;base64,/', '', $item);
+                $decoded = base64_decode($cleanBase64);
+                if ($decoded !== false && strlen($decoded) > 50) {
+                    $imgIndex++;
+                    $filename = 'prop_' . $cleanId . '_' . time() . '_' . $imgIndex . '.jpg';
+                    $filePath = $uploadDir . '/' . $filename;
+                    if (@file_put_contents($filePath, $decoded) !== false) {
+                        $publicUrl = $protocol . '://' . $serverHost . '/api/uploads/props/' . $filename;
+                        $finalUrls[] = $publicUrl;
+                        continue;
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Image processing error: ' . $e->getMessage());
+            }
+        } else {
+            // Already a URL or path
+            $finalUrls[] = $item;
+        }
+    }
+
+    $finalUrls = array_values(array_unique(array_filter($finalUrls)));
+    return [
+        'imageUrls' => $finalUrls,
+        'imageUrl' => count($finalUrls) > 0 ? $finalUrls[0] : null,
+        'customImageBase64' => count($finalUrls) > 0 ? $finalUrls[0] : null
+    ];
+}
+
 switch ($method) {
     case 'GET':
+        // Ultra-lightweight status check for Super Admin (1ms, ~50 bytes)
+        if (isset($_GET['action']) && $_GET['action'] === 'pending_check') {
+            $pdo = getDbConnection();
+            $cnt = 0;
+            $latestId = '';
+            $latestTitle = '';
+            if ($pdo) {
+                try {
+                    $stmt = $pdo->query("SELECT `id`, `title` FROM `properties` WHERE LOWER(`status`) = 'pending' ORDER BY `postedDate` DESC, `created_at` DESC LIMIT 1");
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($row) {
+                        $latestId = $row['id'] ?? '';
+                        $latestTitle = $row['title'] ?? '';
+                    }
+                    $cntStmt = $pdo->query("SELECT COUNT(*) as cnt FROM `properties` WHERE LOWER(`status`) = 'pending'");
+                    $cnt = (int)($cntStmt->fetch(PDO::FETCH_ASSOC)['cnt'] ?? 0);
+                } catch (Exception $e) {}
+            }
+            sendResponse([
+                'success' => true,
+                'pending_count' => $cnt,
+                'latest_pending_id' => $latestId,
+                'latest_pending_title' => $latestTitle
+            ]);
+            exit();
+        }
+
         $properties = getPropertiesData();
         
         // Single property lookup
@@ -279,18 +411,53 @@ switch ($method) {
             });
         }
 
+        // Filter by user_phone (for My Ads / Profile) - STRICT ISOLATION
+        if (!empty($_GET['user_phone'])) {
+            $rawPhone = preg_replace('/[^0-9]/', '', $_GET['user_phone']);
+            if (strlen($rawPhone) >= 10) {
+                $rawPhoneSuffix = substr($rawPhone, -10);
+                $filtered = array_filter($filtered, function ($p) use ($rawPhoneSuffix) {
+                    $cp = preg_replace('/[^0-9]/', '', $p['contactPhone'] ?? '');
+                    $sp = preg_replace('/[^0-9]/', '', $p['sellerPhone'] ?? '');
+                    $ap = preg_replace('/[^0-9]/', '', $p['agent']['phone'] ?? '');
+                    return str_ends_with($cp, $rawPhoneSuffix) ||
+                           str_ends_with($sp, $rawPhoneSuffix) ||
+                           str_ends_with($ap, $rawPhoneSuffix);
+                });
+            } else {
+                $filtered = [];
+            }
+        }
+
+        // Filter by user_email (for Google Sign-In My Ads / Profile) - STRICT ISOLATION
+        if (!empty($_GET['user_email'])) {
+            $targetEmail = strtolower(trim($_GET['user_email']));
+            $filtered = array_filter($filtered, function ($p) use ($targetEmail) {
+                $agentEmail = strtolower(trim($p['agent']['email'] ?? ''));
+                $sellerEmail = strtolower(trim($p['sellerEmail'] ?? ''));
+                return ($agentEmail === $targetEmail) || ($sellerEmail === $targetEmail);
+            });
+        }
+
         // Status filter:
-        // If status parameter is passed (e.g. status=pending, status=active, status=all)
-        // Or if all=true is passed, show all.
-        // By default for public requests without parameters, ONLY show 'active' properties!
-        $showAll = (isset($_GET['all']) && $_GET['all'] === 'true');
-        if (!empty($_GET['status']) && $_GET['status'] !== 'all') {
+        // Public listing requests MUST ONLY see 'active' (approved) properties.
+        // Non-active (pending, rejected) properties are ONLY returned if:
+        // 1. A specific user_email or user_phone is provided (user viewing their own posts history in "My Posts"), OR
+        // 2. An explicit status is requested (e.g. status=pending, status=rejected, status=all), OR
+        // 3. Admin / full sync query is requested (all=true, admin=true).
+        $isUserMyPostsQuery = !empty($_GET['user_phone']) || !empty($_GET['user_email']);
+        $hasExplicitStatus  = !empty($_GET['status']);
+        $isAllOrAdmin       = (isset($_GET['all']) && $_GET['all'] === 'true') ||
+                              (isset($_GET['admin']) && $_GET['admin'] === 'true') ||
+                              (isset($_GET['status']) && $_GET['status'] === 'all');
+
+        if ($hasExplicitStatus && $_GET['status'] !== 'all') {
             $status = strtolower($_GET['status']);
             $filtered = array_filter($filtered, function ($p) use ($status) {
                 return strtolower($p['status'] ?? 'active') === $status;
             });
-        } elseif (!$showAll && empty($_GET['status'])) {
-            // Strict default for public portal: ONLY active properties
+        } elseif (!$isUserMyPostsQuery && !$isAllOrAdmin) {
+            // STRICT SERVER-SIDE ENFORCEMENT: Public guest listings ONLY show 'active' (approved) properties!
             $filtered = array_filter($filtered, function ($p) {
                 $st = strtolower($p['status'] ?? 'active');
                 return $st === 'active';
@@ -309,11 +476,55 @@ switch ($method) {
             });
         }
 
+        $totalCount = count($filtered);
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 0;
+        
+        $pagedList = array_values($filtered);
+        $totalPages = 1;
+        
+        if ($limit > 0) {
+            $totalPages = max(1, (int)ceil($totalCount / $limit));
+            $offset = ($page - 1) * $limit;
+            $pagedList = array_slice($pagedList, $offset, $limit);
+        }
+
+        // Strictly strip customImageBase64 and convert base64 imageUrls to file URLs for all list responses
+        if (empty($_GET['id'])) {
+            $uploadDir = __DIR__ . '/uploads/props';
+            if (!file_exists($uploadDir)) @mkdir($uploadDir, 0777, true);
+            $serverHost = $_SERVER['HTTP_HOST'] ?? 'tenkasidreams.com';
+
+            foreach ($pagedList as &$item) {
+                unset($item['customImageBase64']);
+                if (isset($item['imageUrls']) && is_array($item['imageUrls'])) {
+                    foreach ($item['imageUrls'] as $k => $imgStr) {
+                        if (is_string($imgStr) && strlen($imgStr) > 500) {
+                            $cleanBase64 = preg_replace('/^data:image\/[a-zA-Z0-9+]+;base64,/', '', $imgStr);
+                            $decoded = base64_decode($cleanBase64);
+                            if ($decoded !== false && strlen($decoded) > 50) {
+                                $filename = 'prop_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $item['id'] ?? 'unknown') . '_' . $k . '.jpg';
+                                @file_put_contents($uploadDir . '/' . $filename, $decoded);
+                                $item['imageUrls'][$k] = 'https://' . $serverHost . '/api/uploads/props/' . $filename;
+                            }
+                        }
+                    }
+                    $item['imageUrl'] = count($item['imageUrls']) > 0 ? $item['imageUrls'][0] : null;
+                }
+            }
+            unset($item);
+        }
+
         sendResponse([
             'success' => true,
-            'count' => count($filtered),
-            'total' => count($properties),
-            'properties' => array_values($filtered)
+            'count' => count($pagedList),
+            'total' => $totalCount,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => $totalPages,
+            'has_more' => ($limit > 0 && $page < $totalPages),
+            'properties' => $pagedList,
+            'data' => $pagedList
         ]);
         break;
 
@@ -324,57 +535,64 @@ switch ($method) {
             $action = $input['action'];
         }
 
-        // Handle Direct Admin Quick Approval Action
-        if ($action === 'approve') {
+        // Handle Admin Quick Approval, Rejection & Update Status Actions
+        if ($action === 'update_status' || $action === 'approve' || $action === 'reject') {
             $propId = $input['id'] ?? $_GET['id'] ?? null;
             if (!$propId) {
-                sendResponse(['success' => false, 'message' => 'Property ID is required for approval'], 400);
+                sendResponse(['success' => false, 'message' => 'Property ID is required'], 400);
             }
+
+            $newStatus = 'active';
+            if ($action === 'approve') {
+                $newStatus = 'active';
+            } elseif ($action === 'reject') {
+                $newStatus = 'rejected';
+            } else {
+                $newStatus = strtolower(trim($input['status'] ?? $_GET['status'] ?? 'active'));
+            }
+
+            $isVerified = ($newStatus === 'active');
+
             // Update in DB
-            updatePropertyInDb($propId, ['status' => 'active', 'isVerified' => true]);
+            updatePropertyInDb($propId, ['status' => $newStatus, 'isVerified' => $isVerified]);
+
             // Update in JSON
             $properties = readJsonStorage('properties.json');
+            $sellerPhone = '';
             foreach ($properties as &$p) {
                 if ($p['id'] == $propId) {
-                    $p['status'] = 'active';
-                    $p['isVerified'] = true;
+                    $p['status'] = $newStatus;
+                    $p['isVerified'] = $isVerified;
+                    $sellerPhone = $p['sellerPhone'] ?? $p['contactPhone'] ?? '';
                     break;
                 }
             }
             writeJsonStorage('properties.json', $properties);
-            syncNotificationStatus($propId, 'approved');
+            syncNotificationStatus($propId, $newStatus);
 
-            sendResponse([
-                'success' => true,
-                'message' => 'விளம்பரம் வெற்றிகரமாக ஒப்புதல் (Approved) அளிக்கப்பட்டு நேரலை செய்யப்பட்டது!',
-                'propertyId' => $propId
+            // Emit real-time events to Super Admin and seller
+            emitRealtimeEvent('admin', 'pending_ad_action_taken', [
+                'propertyId' => $propId,
+                'status' => $newStatus,
+                'action' => $newStatus
             ]);
-            break;
-        }
-
-        // Handle Direct Admin Quick Rejection Action
-        if ($action === 'reject') {
-            $propId = $input['id'] ?? $_GET['id'] ?? null;
-            if (!$propId) {
-                sendResponse(['success' => false, 'message' => 'Property ID is required for rejection'], 400);
+            if (!empty($sellerPhone)) {
+                emitRealtimeEvent($sellerPhone, 'property_approval_status', [
+                    'propertyId' => $propId,
+                    'status' => $newStatus,
+                    'message' => ($newStatus === 'active')
+                        ? 'உங்கள் விளம்பரம் வெற்றிகரமாக அப்ரூவல் செய்யப்பட்டு நேரலை செய்யப்பட்டது!'
+                        : 'உங்கள் விளம்பரம் நிராகரிக்கப்பட்டது.'
+                ]);
             }
-            // Update in DB
-            updatePropertyInDb($propId, ['status' => 'rejected']);
-            // Update in JSON
-            $properties = readJsonStorage('properties.json');
-            foreach ($properties as &$p) {
-                if ($p['id'] == $propId) {
-                    $p['status'] = 'rejected';
-                    break;
-                }
-            }
-            writeJsonStorage('properties.json', $properties);
-            syncNotificationStatus($propId, 'rejected');
 
             sendResponse([
                 'success' => true,
-                'message' => 'விளம்பரம் நிராகரிக்கப்பட்டது (Property Rejected)',
-                'propertyId' => $propId
+                'message' => ($newStatus === 'active')
+                    ? 'விளம்பரம் வெற்றிகரமாக ஒப்புதல் (Approved) அளிக்கப்பட்டு நேரலை செய்யப்பட்டது!'
+                    : 'விளம்பரம் நிராகரிக்கப்பட்டது (Property Rejected)!',
+                'propertyId' => $propId,
+                'status' => $newStatus
             ]);
             break;
         }
@@ -408,19 +626,35 @@ switch ($method) {
         }
 
         // Standard Property Creation (Public User or Admin)
-        if (empty($input['title']) || empty($input['propertyType'])) {
-            sendResponse(['success' => false, 'message' => 'விளம்பர தலைப்பு மற்றும் வகை தேவை (Title and Property Type are required)'], 400);
+        $fromAdmin = !empty($input['fromAdmin']) && ($input['fromAdmin'] === true || $input['fromAdmin'] === 'true' || $input['fromAdmin'] === 1 || $input['fromAdmin'] === '1');
+        $isUserSubmission = !$fromAdmin;
+
+        $agentInput = $input['agent'] ?? [];
+        $sellerPhone = trim($input['sellerPhone'] ?? $input['agent_phone'] ?? $input['contactPhone'] ?? ($agentInput['phone'] ?? ''));
+        $sellerEmail = trim($input['sellerEmail'] ?? $input['agent_email'] ?? $input['user_email'] ?? ($agentInput['email'] ?? ''));
+        $sellerName = trim($input['sellerName'] ?? $input['agent_name'] ?? $input['agentName'] ?? ($agentInput['name'] ?? ($fromAdmin ? 'Super Admin' : 'Direct Owner')));
+        $rawTitle = trim($input['title'] ?? '');
+        $rawType = trim($input['propertyType'] ?? 'Land');
+
+        if (empty($rawTitle)) {
+            sendResponse(['success' => false, 'message' => 'விளம்பர தலைப்பு தேவை (Title is required)'], 400);
         }
 
         $newId = 'prop_' . (time()) . '_' . rand(100, 999);
 
-        $isUserSubmission = !isset($input['fromAdmin']) || $input['fromAdmin'] !== true;
         $status = $isUserSubmission ? 'pending' : trim($input['status'] ?? 'active');
         $isVerified = $isUserSubmission ? false : (isset($input['isVerified']) ? (bool)$input['isVerified'] : true);
         $isUserPosted = $isUserSubmission ? true : (bool)($input['isUserPosted'] ?? false);
 
-        $sellerName = trim($input['sellerName'] ?? $input['agent_name'] ?? $input['agentName'] ?? 'Direct Owner');
-        $sellerPhone = trim($input['sellerPhone'] ?? $input['agent_phone'] ?? $input['contactPhone'] ?? '+91 98941 74944');
+        $posterType = trim($input['posterType'] ?? ($fromAdmin ? 'Super Admin' : 'Direct Owner'));
+        $isOwner = (stripos($posterType, 'Owner') !== false);
+        $isPremium = isset($input['isPremium']) ? (bool)$input['isPremium'] : ($isOwner ? true : false);
+
+        // Process property image (Base64 -> Public File URL)
+        $imgResult = processPropertyImage($input, $newId);
+        $finalImageUrls = $imgResult['imageUrls'];
+        $finalImageUrl = $imgResult['imageUrl'];
+        $finalBase64 = $imgResult['customImageBase64'];
 
         $newProperty = [
             'id' => $newId,
@@ -440,7 +674,7 @@ switch ($method) {
             'floor' => trim($input['floor'] ?? 'Ground Floor'),
             'maintenanceMonthly' => isset($input['maintenanceMonthly']) ? (float)$input['maintenanceMonthly'] : null,
             'landmark' => trim($input['landmark'] ?? ''),
-            'posterType' => trim($input['posterType'] ?? 'Direct Owner'),
+            'posterType' => $posterType,
             'landUnit' => trim($input['landUnit'] ?? 'Cent'),
             'landUnitValue' => isset($input['landUnitValue']) ? (float)$input['landUnitValue'] : null,
             'landFeatures' => is_array($input['landFeatures'] ?? null) ? $input['landFeatures'] : [],
@@ -467,15 +701,18 @@ switch ($method) {
             'contactPhone' => $sellerPhone,
             'sellerName' => $sellerName,
             'sellerPhone' => $sellerPhone,
+            'sellerEmail' => $sellerEmail,
             'imageKeys' => is_array($input['imageKeys'] ?? null) && count($input['imageKeys']) > 0 ? $input['imageKeys'] : ['house_1'],
-            'imageUrls' => is_array($input['imageUrls'] ?? null) ? $input['imageUrls'] : (!empty($input['imageUrl']) ? [$input['imageUrl']] : []),
+            'imageUrls' => $finalImageUrls,
+            'imageUrl' => $finalImageUrl,
+            'customImageBase64' => $finalBase64,
             'amenities' => is_array($input['amenities'] ?? null) ? $input['amenities'] : ['24x7 Security', 'Power Backup'],
             'agent' => [
                 'id' => $isUserSubmission ? ('user_' . time()) : 'admin_agent',
                 'name' => $sellerName,
                 'agencyName' => $isUserSubmission ? 'நேரடி உரிமையாளர் (Direct Owner)' : 'Tenkasi Dreams Land',
                 'phone' => $sellerPhone,
-                'email' => trim($input['sellerEmail'] ?? 'tenkasidreams@gmail.com')
+                'email' => !empty($sellerEmail) ? $sellerEmail : ($fromAdmin ? 'tenkasidreams@gmail.com' : 'user@tenkasidreams.com')
             ],
             'postedDate' => date('c'),
             'status' => $status,
@@ -483,6 +720,7 @@ switch ($method) {
             'isVerified' => $isVerified,
             'isFeatured' => isset($input['isFeatured']) ? (bool)$input['isFeatured'] : false,
             'isUserPosted' => $isUserPosted,
+            'isPremium' => $isPremium,
             'views' => 1,
             'enquiries' => 0
         ];
@@ -535,6 +773,21 @@ switch ($method) {
                     ]);
                 } catch (Exception $e) {}
             }
+
+            // Emit real-time event to Super Admin immediately!
+            emitRealtimeEvent('admin', 'new_pending_ad', [
+                'property' => $newProperty,
+                'notification' => $newNotif,
+                'timestamp' => date('c')
+            ]);
+
+            // Trigger high-priority FCM push notification with loud call/alarm ringtone to Super Admin!
+            try {
+                require_once __DIR__ . '/fcm_service.php';
+                sendAdminNewAdNotification($newProperty);
+            } catch (Exception $e) {
+                error_log('FCM dispatch error: ' . $e->getMessage());
+            }
         }
 
         $successMsg = $isUserSubmission 
@@ -555,6 +808,13 @@ switch ($method) {
 
         if (!$id) {
             sendResponse(['success' => false, 'message' => 'Property ID is required'], 400);
+        }
+
+        // Process images if updated
+        if (!empty($input['customImageBase64']) || !empty($input['imageUrl']) || !empty($input['imageUrls'])) {
+            $imgResult = processPropertyImage($input, $id);
+            $input['imageUrls'] = $imgResult['imageUrls'];
+            $input['imageUrl'] = $imgResult['imageUrl'];
         }
 
         // Update in DB

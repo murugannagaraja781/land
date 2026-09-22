@@ -36,7 +36,7 @@ class BottomNavBar extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 64,
+          height: 66,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [

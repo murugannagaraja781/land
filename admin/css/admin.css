@@ -944,7 +944,8 @@ body {
 }
 
 /* ==================== MODALS ==================== */
-.modal-backdrop {
+.modal-backdrop,
+.modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -956,12 +957,13 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 9999;
   padding: 20px;
 }
 
-.modal-backdrop.show {
-  display: flex;
+.modal-backdrop.show,
+.modal.show {
+  display: flex !important;
   animation: fadeIn 0.3s ease;
 }
 
@@ -977,6 +979,14 @@ body {
   flex-direction: column;
   overflow: hidden;
   animation: zoomIn 0.3s ease;
+}
+
+.modal-content {
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
 }
 
 .modal-header {
@@ -1526,3 +1536,84 @@ tr.row-pending {
 tr.row-pending td:first-child {
   border-left: 3px solid var(--accent-gold);
 }
+
+/* ==================== REAL-TIME CONTINUOUS ALARM & DIRECT ACTION BANNER ==================== */
+.pending-alarm-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.28) 0%, rgba(245, 158, 11, 0.22) 100%);
+  border: 2px solid #ef4444;
+  box-shadow: 0 6px 30px rgba(239, 68, 68, 0.45);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  display: block;
+  animation: pulse-border 1.5s infinite ease-in-out;
+  position: relative;
+  z-index: 100;
+}
+
+.pending-alarm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    border-color: #ef4444;
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+    border-color: #f59e0b;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    border-color: #ef4444;
+  }
+}
+
+.pending-alarm-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pending-alarm-icon {
+  font-size: 30px;
+  display: inline-flex;
+  animation: ring-shake 0.75s infinite ease-in-out;
+}
+
+@keyframes ring-shake {
+  0% { transform: rotate(0); }
+  15% { transform: rotate(15deg); }
+  30% { transform: rotate(-15deg); }
+  45% { transform: rotate(10deg); }
+  60% { transform: rotate(-10deg); }
+  75% { transform: rotate(4deg); }
+  100% { transform: rotate(0); }
+}
+
+.pending-alarm-text strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+
+.pending-alarm-text span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pending-alarm-counter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+

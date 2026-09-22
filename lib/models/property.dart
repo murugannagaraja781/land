@@ -14,6 +14,8 @@ class Property {
   final String furnishingStatus; // Fully Furnished, Semi-Furnished, Unfurnished, N/A
   final String facing; // East, West, North, South, North-East, Corner Plot, etc.
   final String floor; // e.g. '3rd of 5 floors' or 'Ground floor'
+  final List<String> imageUrls;
+  final String? imageUrl;
   final List<String> imageKeys;
   final List<String> amenities;
   final Agent agent;
@@ -82,6 +84,8 @@ class Property {
     this.furnishingStatus = 'Unfurnished',
     this.facing = 'East',
     this.floor = 'Ground Floor',
+    this.imageUrls = const [],
+    this.imageUrl,
     this.imageKeys = const [],
     this.amenities = const [],
     required this.agent,
@@ -129,6 +133,16 @@ class Property {
 
   bool get isRental => propertyType.toLowerCase() == 'rental' || isLease;
 
+  String? get primaryImageUrl {
+    if (imageUrls.isNotEmpty && imageUrls.first.isNotEmpty) {
+      return imageUrls.first;
+    }
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      return imageUrl;
+    }
+    return null;
+  }
+
   Property copyWith({
     String? id,
     String? title,
@@ -143,6 +157,8 @@ class Property {
     String? furnishingStatus,
     String? facing,
     String? floor,
+    List<String>? imageUrls,
+    String? imageUrl,
     List<String>? imageKeys,
     List<String>? amenities,
     Agent? agent,
@@ -201,6 +217,8 @@ class Property {
       furnishingStatus: furnishingStatus ?? this.furnishingStatus,
       facing: facing ?? this.facing,
       floor: floor ?? this.floor,
+      imageUrls: imageUrls ?? this.imageUrls,
+      imageUrl: imageUrl ?? this.imageUrl,
       imageKeys: imageKeys ?? this.imageKeys,
       amenities: amenities ?? this.amenities,
       agent: agent ?? this.agent,
@@ -262,6 +280,8 @@ class Property {
       'furnishingStatus': furnishingStatus,
       'facing': facing,
       'floor': floor,
+      'imageUrls': imageUrls,
+      'imageUrl': imageUrl,
       'imageKeys': imageKeys,
       'amenities': amenities,
       'agent': agent.toMap(),
@@ -289,6 +309,9 @@ class Property {
       'isBankLoanAvailable': isBankLoanAvailable,
       'isPriceNegotiable': isPriceNegotiable,
       'contactPhone': contactPhone,
+      'sellerPhone': contactPhone ?? agent.phone,
+      'sellerEmail': agent.email,
+      'sellerName': agent.name,
       'googleMapUrl': googleMapUrl,
       'waterSource': waterSource,
       'hasLift': hasLift,
@@ -309,6 +332,18 @@ class Property {
   }
 
   factory Property.fromMap(Map<String, dynamic> map) {
+    List<String> parsedUrls = [];
+    if (map['imageUrls'] is List) {
+      parsedUrls = List<String>.from((map['imageUrls'] as List).map((e) => e.toString()));
+    } else if (map['imageUrl'] != null && map['imageUrl'].toString().isNotEmpty) {
+      parsedUrls = [map['imageUrl'].toString()];
+    }
+
+    String? singleUrl = map['imageUrl']?.toString();
+    if ((singleUrl == null || singleUrl.isEmpty) && parsedUrls.isNotEmpty) {
+      singleUrl = parsedUrls.first;
+    }
+
     return Property(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
@@ -323,6 +358,8 @@ class Property {
       furnishingStatus: map['furnishingStatus'] ?? 'Unfurnished',
       facing: map['facing'] ?? 'East',
       floor: map['floor'] ?? 'Ground Floor',
+      imageUrls: parsedUrls,
+      imageUrl: singleUrl,
       imageKeys: List<String>.from(map['imageKeys'] ?? []),
       amenities: List<String>.from(map['amenities'] ?? []),
       agent: Agent.fromMap(map['agent'] ?? {}),

@@ -61,6 +61,7 @@ class PropertyCard extends StatelessWidget {
                   PropertyVisual(
                     propertyType: property.propertyType,
                     customImageBase64: property.customImageBase64,
+                    imageUrl: property.primaryImageUrl,
                     height: 150,
                     width: double.infinity,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
@@ -200,6 +201,7 @@ class PropertyCard extends StatelessWidget {
                   PropertyVisual(
                     propertyType: property.propertyType,
                     customImageBase64: property.customImageBase64,
+                    imageUrl: property.primaryImageUrl,
                     height: 180,
                     width: double.infinity,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
@@ -591,7 +593,7 @@ class PropertyCard extends StatelessWidget {
 
   Future<void> _launchWhatsApp(String phone, String title) async {
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    final text = Uri.encodeComponent('வணக்கம், Tenkasi Dreams Land ஆப்பில் உள்ள "$title" சொத்து பற்றி விசாரிக்க விரும்புகிறேன்.');
+    final text = Uri.encodeComponent('பதிவு செய்தமைக்கு நன்றி');
     final uri = Uri.parse('https://wa.me/$clean?text=$text');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

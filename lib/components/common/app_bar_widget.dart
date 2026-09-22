@@ -6,6 +6,7 @@ import '../../features/account/favorites_screen.dart';
 import '../../features/account/notifications_screen.dart';
 import '../../features/home/location_dialog.dart';
 import '../../features/search/search_screen.dart';
+import '../../core/utils/location_service.dart';
 import '../../state/app_state_providers.dart';
 
 class AppBarWidget extends ConsumerWidget {
@@ -311,6 +312,190 @@ class AppBarWidget extends ConsumerWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+
+          // Row 3: GPS Location Quick Search & Area Chips (Below Search Box)
+          Container(
+            height: 38,
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              children: [
+                // 1. Live GPS Location Detector Button
+                InkWell(
+                  onTap: () async {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Row(
+                          children: [
+                            SizedBox(
+                              width: 15,
+                              height: 15,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text('📍 GPS மூலம் நேரலை இருப்பிடம் பெறப்படுகிறது...'),
+                            ),
+                          ],
+                        ),
+                        duration: Duration(seconds: 4),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    final loc = await LocationService.getCurrentLiveLocation(context: context);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    if (loc.isLiveGps) {
+                      ref.read(userLocationProvider.notifier).setLiveLocation(loc);
+                      final area = loc.estimatedArea.isNotEmpty ? loc.estimatedArea : loc.estimatedCity;
+                      if (area.isNotEmpty) {
+                        ref.read(selectedLocationProvider.notifier).setLocation('$area, ${loc.estimatedCity}');
+                        ref.read(localStorageServiceProvider).setCurrentLocation('$area, ${loc.estimatedCity}');
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text('✅ நேரலை GPS: $area (${loc.formattedCoordinates})'),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFF2E7D32),
+                          duration: const Duration(seconds: 3),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } else if (loc.error != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('⚠️ ${loc.error}'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF4CAF50), width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.18),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1.5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2E7D32),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.my_location_rounded, size: 11, color: Colors.white),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '📍 GPS என் இடம்',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1B5E20),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                // 2. Tenkasi Location Chips
+                ...[
+                  'தென்காசி',
+                  'குற்றாலம்',
+                  'செங்கோட்டை',
+                  'சுரண்டை',
+                  'கடையநல்லூர்',
+                  'இலஞ்சி',
+                  'பாவூர்சத்திரம்',
+                  'அனைத்து இடங்கள்',
+                ].map((loc) {
+                  final isSelected = (loc == 'அனைத்து இடங்கள்' && location.isEmpty) ||
+                      (loc != 'அனைத்து இடங்கள்' && location.contains(loc));
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () {
+                        if (loc == 'அனைத்து இடங்கள்') {
+                          ref.read(selectedLocationProvider.notifier).setLocation('');
+                          ref.read(userLocationProvider.notifier).setManualLocation('');
+                        } else {
+                          ref.read(selectedLocationProvider.notifier).setLocation('$loc, Tenkasi');
+                          ref.read(userLocationProvider.notifier).setManualLocation(loc);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF0D47A1) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF0D47A1) : const Color(0xFFCBD5E1),
+                            width: 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF0D47A1).withValues(alpha: 0.25),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1.5),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.location_on_rounded,
+                              size: 13,
+                              color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              loc,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: isSelected ? Colors.white : const Color(0xFF334155),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         ],

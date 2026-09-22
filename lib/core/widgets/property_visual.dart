@@ -12,6 +12,7 @@ class PropertyVisual extends StatelessWidget {
   final BoxFit fit;
   final String? customTag;
   final String? customImageBase64;
+  final String? imageUrl;
 
   const PropertyVisual({
     super.key,
@@ -23,6 +24,7 @@ class PropertyVisual extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.customTag,
     this.customImageBase64,
+    this.imageUrl,
   });
 
   @override
@@ -44,8 +46,13 @@ class PropertyVisual extends StatelessWidget {
               Image.memory(
                 base64Decode(customImageBase64!),
                 fit: fit,
-                errorBuilder: (context, error, stackTrace) => _buildAssetOrPainter(),
+                errorBuilder: (context, error, stackTrace) =>
+                    (imageUrl != null && imageUrl!.isNotEmpty)
+                        ? _buildNetworkImage()
+                        : _buildAssetOrPainter(),
               )
+            else if (imageUrl != null && imageUrl!.isNotEmpty)
+              _buildNetworkImage()
             else
               _buildAssetOrPainter(),
             // Subtle ambient gradient for depth & readability of text over images
@@ -90,6 +97,27 @@ class PropertyVisual extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildNetworkImage() {
+    return Image.network(
+      imageUrl!,
+      fit: fit,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: AppColors.surfaceAlt,
+          child: const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _buildAssetOrPainter(),
     );
   }
 

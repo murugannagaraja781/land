@@ -61,6 +61,7 @@ class ListingPropertyCard extends ConsumerWidget {
                       propertyType: property.propertyType,
                       visualIndex: property.id.hashCode.abs() % 4,
                       customImageBase64: property.customImageBase64,
+                      imageUrl: property.primaryImageUrl,
                       width: 115,
                       height: 110,
                       borderRadius: BorderRadius.circular(10),

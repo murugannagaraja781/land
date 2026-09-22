@@ -1,7 +1,15 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import '../core/config/api_config.dart';
+import '../core/services/realtime_service.dart';
+import '../models/user_request.dart';
 import '../data/local/local_storage_service.dart';
+import '../data/local/seed_data.dart';
 import '../data/repositories/chat_repository.dart';
 import '../data/repositories/property_repository.dart';
+import '../data/remote/property_api_service.dart';
 import '../models/buyer_requirement.dart';
 import '../models/chat_message.dart';
 import '../models/notification_item.dart';
@@ -135,6 +143,7 @@ class PropertiesNotifier extends Notifier<List<Property>> {
   @override
   List<Property> build() {
     _repo = ref.watch(propertyRepositoryProvider);
+    Future.microtask(() => syncWithServer());
     return _repo.getAllProperties();
   }
 
@@ -286,7 +295,27 @@ final myAdsStatusFilterProvider = NotifierProvider<MyAdsStatusFilterNotifier, St
 );
 
 final myAdsListProvider = Provider<List<Property>>((ref) {
-  final all = ref.watch(propertiesProvider).where((p) => p.isUserPosted).toList();
+  final user = ref.watch(userProfileProvider);
+  if (!user.isLoggedIn) return [];
+
+  final cleanUserPhone = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+  final all = ref.watch(propertiesProvider).where((p) {
+    if (!p.isUserPosted) return false;
+    if (cleanUserPhone.length >= 10) {
+      final userSuffix = cleanUserPhone.substring(cleanUserPhone.length - 10);
+      final cleanContact = (p.contactPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+      final cleanAgentPhone = p.agent.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (cleanContact.length >= 10 && cleanContact.endsWith(userSuffix)) return true;
+      if (cleanAgentPhone.length >= 10 && cleanAgentPhone.endsWith(userSuffix)) return true;
+    }
+    if (user.email.isNotEmpty && p.agent.email.isNotEmpty) {
+      if (p.agent.email.trim().toLowerCase() == user.email.trim().toLowerCase()) {
+        return true;
+      }
+    }
+    return false;
+  }).toList();
+
   final filter = ref.watch(myAdsStatusFilterProvider);
   if (filter == 'all') return all;
   return all.where((p) => p.status.toLowerCase() == filter.toLowerCase()).toList();
@@ -475,6 +504,11 @@ class ConversationsNotifier extends Notifier<List<ChatConversation>> {
       state = _storage.getConversations();
     }
   }
+
+  Future<void> syncAdminAllConversations() async {
+    await _chatRepo.syncAdminAllConversations();
+    state = _storage.getConversations();
+  }
 }
 
 final conversationsProvider = NotifierProvider<ConversationsNotifier, List<ChatConversation>>(
@@ -504,6 +538,11 @@ class NotificationsNotifier extends Notifier<List<NotificationItem>> {
     await _storage.markAllNotificationsRead();
     state = _storage.getNotifications();
   }
+
+  Future<void> addNotification(NotificationItem item) async {
+    await _storage.addNotification(item);
+    state = _storage.getNotifications();
+  }
 }
 
 final notificationsProvider = NotifierProvider<NotificationsNotifier, List<NotificationItem>>(
@@ -529,6 +568,17 @@ class UserProfileNotifier extends Notifier<UserProfile> {
     state = profile;
     await _storage.saveUserProfile(profile);
   }
+
+  Future<void> logout() async {
+    RealtimeService().stopListening();
+    ref.read(userRequestsProvider.notifier).clear();
+    await _storage.clearUserSessionData();
+    state = SeedData.initialProfile;
+    ref.read(propertiesProvider.notifier).refresh();
+    ref.read(notificationsProvider.notifier).refresh();
+    ref.read(conversationsProvider.notifier).refresh();
+    await ref.read(propertiesProvider.notifier).syncWithServer();
+  }
 }
 
 final userProfileProvider = NotifierProvider<UserProfileNotifier, UserProfile>(
@@ -538,25 +588,279 @@ final userProfileProvider = NotifierProvider<UserProfileNotifier, UserProfile>(
 // 11. Buyer Requirements (மக்களின் தேவை) Notifier
 class BuyerRequirementsNotifier extends Notifier<List<BuyerRequirement>> {
   late final LocalStorageService _storage;
+  final PropertyApiService _apiService = PropertyApiService();
 
   @override
   List<BuyerRequirement> build() {
     _storage = ref.watch(localStorageServiceProvider);
+    Future.microtask(() => syncWithServer());
     return _storage.getBuyerRequirements();
   }
 
+  Future<void> syncWithServer() async {
+    try {
+      final rawList = await _apiService.fetchBuyerRequirements();
+      if (rawList.isNotEmpty) {
+        final reqs = rawList.map((m) => BuyerRequirement.fromMap(m)).toList();
+        await _storage.saveBuyerRequirements(reqs);
+        state = reqs;
+      }
+    } catch (_) {}
+  }
+
   void refresh() {
+    syncWithServer();
     state = _storage.getBuyerRequirements();
   }
 
   Future<void> addRequirement(BuyerRequirement req) async {
     await _storage.addBuyerRequirement(req);
     state = _storage.getBuyerRequirements();
+    try {
+      await _apiService.createBuyerRequirement(req.toMap());
+    } catch (_) {}
   }
 }
 
 final buyerRequirementsProvider =
     NotifierProvider<BuyerRequirementsNotifier, List<BuyerRequirement>>(
   BuyerRequirementsNotifier.new,
+);
+
+// 12. User Requests (Real-Time Contact & Approval)
+class UserRequestsState {
+  final List<UserRequest> sent;
+  final List<UserRequest> received;
+  final bool isLoading;
+
+  const UserRequestsState({
+    this.sent = const [],
+    this.received = const [],
+    this.isLoading = false,
+  });
+
+  UserRequestsState copyWith({
+    List<UserRequest>? sent,
+    List<UserRequest>? received,
+    bool? isLoading,
+  }) {
+    return UserRequestsState(
+      sent: sent ?? this.sent,
+      received: received ?? this.received,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+class UserRequestsNotifier extends Notifier<UserRequestsState> {
+  bool _listenerAttached = false;
+
+  @override
+  UserRequestsState build() {
+    final user = ref.watch(userProfileProvider);
+    if (user.isLoggedIn && user.phone.isNotEmpty) {
+      final cleanPhone = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (cleanPhone.isNotEmpty) {
+        RealtimeService().startListening(cleanPhone);
+        if (!_listenerAttached) {
+          _listenerAttached = true;
+          RealtimeService().addListener(_handleRealtimeEvent);
+        }
+        Future.microtask(() => fetchRequests());
+      }
+    }
+    return const UserRequestsState();
+  }
+
+  void _handleRealtimeEvent(String eventType, Map<String, dynamic> payload) {
+    if (eventType == 'new_request') {
+      try {
+        final req = UserRequest.fromMap(payload);
+        final currentReceived = List<UserRequest>.from(state.received);
+        currentReceived.removeWhere((r) => r.id == req.id);
+        currentReceived.insert(0, req);
+        state = state.copyWith(received: currentReceived);
+
+        // Also add local notification
+        ref.read(notificationsProvider.notifier).addNotification(
+          NotificationItem(
+            id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
+            title: 'புதிய தொடர்பு கோரிக்கை: ${req.senderName}',
+            message: '${req.senderName} (${req.senderPhone}) உங்கள் \'${req.propertyTitle ?? "விளம்பரம்"}\' விளம்பரத்திற்கு கோரிக்கை விடுத்துள்ளார்.',
+            timestamp: DateTime.now(),
+            type: 'enquiry',
+            propertyId: req.propertyId,
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error parsing new_request: $e');
+      }
+    } else if (eventType == 'request_status_updated') {
+      try {
+        final reqId = payload['id'] ?? '';
+        final status = (payload['status'] ?? 'pending').toString().toLowerCase();
+        final currentSent = List<UserRequest>.from(state.sent);
+        final index = currentSent.indexWhere((r) => r.id == reqId);
+        if (index != -1) {
+          currentSent[index] = currentSent[index].copyWith(status: status);
+          state = state.copyWith(sent: currentSent);
+        }
+
+        final receiverName = payload['receiverName'] ?? 'விற்பனையாளர்';
+        final isAcc = status == 'accepted';
+        ref.read(notificationsProvider.notifier).addNotification(
+          NotificationItem(
+            id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
+            title: isAcc ? 'கோரிக்கை ஏற்கப்பட்டது! ✓' : 'கோரிக்கை நிராகரிக்கப்பட்டது',
+            message: isAcc
+                ? '$receiverName உங்கள் கோரிக்கையை ஏற்றுக்கொண்டுள்ளார். தொடர்பு கொள்ளலாம்!'
+                : '$receiverName உங்கள் கோரிக்கையை நிராகரித்துள்ளார்.',
+            timestamp: DateTime.now(),
+            type: isAcc ? 'ad_approved' : 'system',
+            propertyId: payload['propertyId'],
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error parsing request_status_updated: $e');
+      }
+    }
+  }
+
+  Future<void> fetchRequests() async {
+    final user = ref.read(userProfileProvider);
+    final cleanPhone = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.isEmpty) return;
+
+    state = state.copyWith(isLoading: true);
+    final baseUrl = ApiConfig.instance.serverUrl;
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/requests.php?user_phone=${Uri.encodeComponent(cleanPhone)}'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          final sentList = (data['sent'] as List? ?? [])
+              .map((e) => UserRequest.fromMap(e as Map<String, dynamic>))
+              .toList();
+          final receivedList = (data['received'] as List? ?? [])
+              .map((e) => UserRequest.fromMap(e as Map<String, dynamic>))
+              .toList();
+          state = UserRequestsState(sent: sentList, received: receivedList, isLoading: false);
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('fetchRequests error: $e');
+    }
+    state = state.copyWith(isLoading: false);
+  }
+
+  Future<bool> sendRequest({
+    required String receiverPhone,
+    required String receiverName,
+    String? propertyId,
+    String? propertyTitle,
+    String? message,
+  }) async {
+    final user = ref.read(userProfileProvider);
+    final cleanSenderPhone = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanSenderPhone.isEmpty) return false;
+
+    final baseUrl = ApiConfig.instance.serverUrl;
+    try {
+      final body = jsonEncode({
+        'action': 'send',
+        'senderPhone': cleanSenderPhone,
+        'senderName': user.name.isNotEmpty ? user.name : 'பயனர்',
+        'receiverPhone': receiverPhone.replaceAll(RegExp(r'[^0-9]'), ''),
+        'receiverName': receiverName,
+        'propertyId': propertyId,
+        'propertyTitle': propertyTitle,
+        'message': message ?? 'வணக்கம், உங்கள் விளம்பரம் தொடர்பாக தொடர்பு கொள்ள விரும்புகிறேன்.',
+      });
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/requests.php?action=send'),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['request'] != null) {
+          final newReq = UserRequest.fromMap(data['request']);
+          final currentSent = List<UserRequest>.from(state.sent);
+          currentSent.removeWhere((r) => r.id == newReq.id);
+          currentSent.insert(0, newReq);
+          state = state.copyWith(sent: currentSent);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('sendRequest error: $e');
+    }
+    return false;
+  }
+
+  Future<bool> acceptRequest(String requestId) async {
+    // Optimistic UI update immediately
+    final currentReceived = List<UserRequest>.from(state.received);
+    final idx = currentReceived.indexWhere((r) => r.id == requestId);
+    if (idx != -1) {
+      currentReceived[idx] = currentReceived[idx].copyWith(status: 'accepted');
+      state = state.copyWith(received: currentReceived);
+    }
+
+    final baseUrl = ApiConfig.instance.serverUrl;
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/requests.php?action=accept'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'action': 'accept', 'requestId': requestId}),
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('acceptRequest error: $e');
+    }
+    return false;
+  }
+
+  Future<bool> rejectRequest(String requestId) async {
+    // Optimistic UI update immediately
+    final currentReceived = List<UserRequest>.from(state.received);
+    final idx = currentReceived.indexWhere((r) => r.id == requestId);
+    if (idx != -1) {
+      currentReceived[idx] = currentReceived[idx].copyWith(status: 'rejected');
+      state = state.copyWith(received: currentReceived);
+    }
+
+    final baseUrl = ApiConfig.instance.serverUrl;
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/requests.php?action=reject'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'action': 'reject', 'requestId': requestId}),
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('rejectRequest error: $e');
+    }
+    return false;
+  }
+
+  void clear() {
+    state = const UserRequestsState();
+  }
+}
+
+final userRequestsProvider = NotifierProvider<UserRequestsNotifier, UserRequestsState>(
+  UserRequestsNotifier.new,
 );
 

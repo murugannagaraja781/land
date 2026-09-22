@@ -41,6 +41,25 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:472022657503:android:a8cff0e52efdb530a63c6b",
+        "android_client_info": {
+          "package_name": "com.antigravity.realestate.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNP_ZzSOLgoaD5ft-78MTflyxsv9ONp-Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

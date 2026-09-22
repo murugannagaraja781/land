@@ -100,12 +100,21 @@ $liveKeySecret = trim($_ENV['RAZORPAY_LIVE_KEY_SECRET'] ?? '');
 $testKeyId = trim($_ENV['RAZORPAY_TEST_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq');
 $testKeySecret = trim($_ENV['RAZORPAY_TEST_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe');
 
-$isLiveActive = ($razorpayMode === 'live' && !empty($liveKeyId) && str_starts_with($liveKeyId, 'rzp_live'));
+$envKeyId = trim($_ENV['RAZORPAY_KEY_ID'] ?? '');
+$envKeySecret = trim($_ENV['RAZORPAY_KEY_SECRET'] ?? '');
+
+$isLiveActive = ($razorpayMode === 'live' && !empty($liveKeyId) && str_starts_with($liveKeyId, 'rzp_live'))
+    || ($razorpayMode === 'live' && str_starts_with($envKeyId, 'rzp_live'))
+    || str_starts_with($envKeyId, 'rzp_live');
 
 define('RAZORPAY_MODE', $isLiveActive ? 'live' : 'test');
 define('RAZORPAY_ACCOUNT_ID', $_ENV['RAZORPAY_ACCOUNT_ID'] ?? 'acc_Tdw7B4Z0zFh95x');
-define('RAZORPAY_KEY_ID', $isLiveActive ? $liveKeyId : ($testKeyId ?: ($_ENV['RAZORPAY_KEY_ID'] ?? 'rzp_test_TeE2LFCxmmioPq')));
-define('RAZORPAY_KEY_SECRET', $isLiveActive ? $liveKeySecret : ($testKeySecret ?: ($_ENV['RAZORPAY_KEY_SECRET'] ?? 'bxk4gdsx48aBSjVSJd61IjLe')));
+define('RAZORPAY_KEY_ID', $isLiveActive 
+    ? (!empty($liveKeyId) ? $liveKeyId : $envKeyId) 
+    : ($testKeyId ?: ($envKeyId ?: 'rzp_test_TeE2LFCxmmioPq')));
+define('RAZORPAY_KEY_SECRET', $isLiveActive 
+    ? (!empty($liveKeySecret) ? $liveKeySecret : $envKeySecret) 
+    : ($testKeySecret ?: ($envKeySecret ?: 'bxk4gdsx48aBSjVSJd61IjLe')));
 define('UPI_ID', $_ENV['UPI_ID'] ?? '9894174944@upi');
 define('CONTACT_UNLOCK_PRICE', (int)($_ENV['CONTACT_UNLOCK_PRICE'] ?? 30));
 define('FREE_CONTACT_LIMIT', (int)($_ENV['FREE_CONTACT_LIMIT'] ?? 3));

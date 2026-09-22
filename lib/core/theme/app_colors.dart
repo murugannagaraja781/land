@@ -52,6 +52,7 @@ class AppColors {
   static const Color warningLight = Color(0xFFFFF4E5);
   static const Color error = Color(0xFFD32F2F);
   static const Color errorLight = Color(0xFFFFEBEE);
+  static const Color emerald = Color(0xFF10B981);
 
   // Shadows
   static List<BoxShadow> cardShadow = [

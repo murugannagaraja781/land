@@ -31,6 +31,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ScrollController _scrollController;
   final GlobalKey _categoryListingsKey = GlobalKey();
+  int _currentPage = 1;
+  static const int _pageSize = 5;
 
   @override
   void initState() {
@@ -45,6 +47,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onCategorySelected(String catId, String activeCategory) {
+    setState(() => _currentPage = 1);
     if (activeCategory == catId) {
       ref.read(selectedCategoryProvider.notifier).setCategory('all');
       if (_scrollController.hasClients) {
@@ -59,6 +62,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToCategoryListings();
       });
+    }
+  }
+
+  void _onPageChanged(int newPage) {
+    setState(() => _currentPage = newPage);
+    if (_scrollController.hasClients) {
+      final targetContext = _categoryListingsKey.currentContext;
+      if (targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+          alignment: 0.02,
+        );
+      } else {
+        _scrollController.animateTo(
+          550.0.clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
     }
   }
 
@@ -84,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _resetToAllCategories() {
+    setState(() => _currentPage = 1);
     ref.read(selectedCategoryProvider.notifier).setCategory('all');
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -116,7 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          ref.read(propertiesProvider.notifier).refresh();
+          await ref.read(propertiesProvider.notifier).syncWithServer();
         },
         child: CustomScrollView(
           controller: _scrollController,
@@ -203,28 +228,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onAction: _resetToAllCategories,
                   ),
                 )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.63,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 16,
+              else ...[
+                () {
+                  final catTotalPages = (displayedList.length / _pageSize).ceil().clamp(1, 9999);
+                  final catStart = ((_currentPage - 1) * _pageSize).clamp(0, displayedList.length);
+                  final catEnd = (catStart + _pageSize).clamp(0, displayedList.length);
+                  final pagedCategoryList = displayedList.sublist(catStart, catEnd);
+
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.63,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 16,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final prop = pagedCategoryList[index];
+                          return OlxGridCard(
+                            property: prop,
+                            onTap: () => _openDetail(context, prop),
+                          );
+                        },
+                        childCount: pagedCategoryList.length,
+                      ),
                     ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final prop = displayedList[index];
-                        return OlxGridCard(
-                          property: prop,
-                          onTap: () => _openDetail(context, prop),
-                        );
-                      },
-                      childCount: displayedList.length,
+                  );
+                }(),
+                if ((displayedList.length / _pageSize).ceil() > 1)
+                  SliverToBoxAdapter(
+                    child: _buildPaginationControls(
+                      currentPage: _currentPage,
+                      totalPages: (displayedList.length / _pageSize).ceil(),
+                      onPageChanged: _onPageChanged,
                     ),
                   ),
-                ),
+              ],
             ] else ...[
               // Recommended Properties Section Header
               SliverToBoxAdapter(
@@ -321,28 +362,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
-              // 2-Column Grid Feed
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.63,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 16,
+              // 2-Column Grid Feed (Paged: 5 items per page)
+              () {
+                final latestTotalPages = (latest.length / _pageSize).ceil().clamp(1, 9999);
+                final latestStart = ((_currentPage - 1) * _pageSize).clamp(0, latest.length);
+                final latestEnd = (latestStart + _pageSize).clamp(0, latest.length);
+                final pagedLatest = latest.sublist(latestStart, latestEnd);
+
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.63,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 16,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final prop = pagedLatest[index];
+                        return OlxGridCard(
+                          property: prop,
+                          onTap: () => _openDetail(context, prop),
+                        );
+                      },
+                      childCount: pagedLatest.length,
+                    ),
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final prop = latest[index];
-                      return OlxGridCard(
-                        property: prop,
-                        onTap: () => _openDetail(context, prop),
-                      );
-                    },
-                    childCount: latest.length,
+                );
+              }(),
+              if ((latest.length / _pageSize).ceil() > 1)
+                SliverToBoxAdapter(
+                  child: _buildPaginationControls(
+                    currentPage: _currentPage,
+                    totalPages: (latest.length / _pageSize).ceil(),
+                    onPageChanged: _onPageChanged,
                   ),
                 ),
-              ),
             ],
 
             // Bottom padding
@@ -351,6 +407,128 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ===== Pagination Controls Widget =====
+  Widget _buildPaginationControls({
+    required int currentPage,
+    required int totalPages,
+    required ValueChanged<int> onPageChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'பக்கம் $currentPage / $totalPages',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '5 விளம்பரங்கள் / பக்கம்',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: currentPage > 1 ? const Color(0xFF0F3D6E) : Colors.grey.shade200,
+                  foregroundColor: currentPage > 1 ? Colors.white : Colors.grey.shade500,
+                  elevation: currentPage > 1 ? 1 : 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.arrow_back_ios_rounded, size: 12),
+                label: const Text('முந்தைய', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(totalPages > 5 ? 5 : totalPages, (i) {
+                  int pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+
+                  final isCurrent = pageNum == currentPage;
+                  return InkWell(
+                    onTap: () => onPageChanged(pageNum),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isCurrent ? const Color(0xFF0284C7) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isCurrent ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      child: Text(
+                        '$pageNum',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: isCurrent ? Colors.white : const Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: currentPage < totalPages ? const Color(0xFF0F3D6E) : Colors.grey.shade200,
+                  foregroundColor: currentPage < totalPages ? Colors.white : Colors.grey.shade500,
+                  elevation: currentPage < totalPages ? 1 : 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                label: const Text('அடுத்த', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.arrow_forward_ios_rounded, size: 12),
+                onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -958,45 +1136,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         break;
       case 'apartment':
         icon = Icons.apartment_rounded;
-        titleTa = '🏢 உங்கள் அபார்ட்மெண்ட் / பிளாட் விற்க வேண்டுமா?';
-        subTa = 'BHK, லிப்ட், UDS, அப்ரூவல் விவரங்களுடன் வாங்குபவர்களை உடனடியாக சென்றடையுங்கள்';
-        buttonText = '+ பிளாட் விளம்பரம்';
+        titleTa = '🏢 பிளாட் / அபார்ட்மெண்ட் விற்கவா?';
+        subTa = 'BHK, லிப்ட், அப்ரூவல் விவரங்களுடன் வாங்குபவர்களை சென்றடையுங்கள்';
+        buttonText = '+ பதிவிடு';
         primaryColor = const Color(0xFF1E3A8A);
         accentColor = const Color(0xFF2563EB);
         break;
       case 'rental':
       case 'rent':
         icon = Icons.vpn_key_rounded;
-        titleTa = '🔑 வாடகைக்கு / லீசுக்கு விட வேண்டுமா?';
-        subTa = 'வீடு, கடை, காம்ப்ளக்ஸ், இடம் - சரியான வாடகைதாரரை உடனே கண்டறியுங்கள்';
-        buttonText = '+ வாடகை விளம்பரம்';
+        titleTa = '🔑 வாடகைக்கு / லீசுக்கு விடவா?';
+        subTa = 'வீடு, கடை, காம்ப்ளக்ஸ் - வாடகைதாரரை உடனே கண்டறியுங்கள்';
+        buttonText = '+ பதிவிடு';
         primaryColor = const Color(0xFF7C2D12);
         accentColor = const Color(0xFFEA580C);
         break;
       case 'shop':
       case 'commercial':
         icon = Icons.storefront_rounded;
-        titleTa = '🏪 கடை / வணிக இடத்தை விற்க அல்லது வாடகைக்கு விடவா?';
-        subTa = 'மெயின் ரோடு, பஜார், ஷோரூம், அலுவலக இடங்களை நேரடி வாடிக்கையாளர்களிடம் விளம்பரப்படுத்துங்கள்';
-        buttonText = '+ கடை விளம்பரம்';
+        titleTa = '🏪 கடை / வணிக இடம் விற்கவா?';
+        subTa = 'பஜார், ஷோரூம், அலுவலக இடங்களை வாடிக்கையாளர்களிடம் விளம்பரம் செய்க';
+        buttonText = '+ பதிவிடு';
         primaryColor = const Color(0xFF78350F);
         accentColor = const Color(0xFFD97706);
         break;
       case 'land':
       case 'plots':
         icon = Icons.landscape_rounded;
-        titleTa = '📐 உங்கள் வீட்டுமனையை / காலி இடத்தை விற்க வேண்டுமா?';
-        subTa = 'DTCP / RERA அப்ரூவல், சென்ட், சதுர அடி விவரங்களுடன் உடனடியாக விற்கலாம்';
-        buttonText = '+ இடம் விளம்பரம்';
+        titleTa = '📐 மனை / காலி இடம் விற்க வேண்டுமா?';
+        subTa = 'DTCP / RERA அப்ரூவல், சென்ட் விவரங்களுடன் உடனடியாக விற்கலாம்';
+        buttonText = '+ பதிவிடு';
         primaryColor = const Color(0xFF064E3B);
         accentColor = const Color(0xFF059669);
         break;
       case 'house':
       default:
         icon = Icons.home_rounded;
-        titleTa = '🏠 உங்கள் தனி வீட்டை விரைவாக விற்க வேண்டுமா?';
-        subTa = 'தனி வீடு, வில்லா, பண்ணை வீடு - நேரடி வாங்குபவர்களிடம் விளம்பரம் செய்க';
-        buttonText = '+ வீடு விளம்பரம்';
+        titleTa = '🏠 தனி வீட்டை விற்க வேண்டுமா?';
+        subTa = 'தனி வீடு, வில்லா, பண்ணை வீடு - வாங்குபவர்களிடம் விளம்பரம் செய்க';
+        buttonText = '+ பதிவிடு';
         primaryColor = const Color(0xFF0F172A);
         accentColor = const Color(0xFF0284C7);
         break;

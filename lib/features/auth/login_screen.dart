@@ -126,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final updatedProfile = ref.read(userProfileProvider).copyWith(
       name: cleanName,
       email: cleanEmail,
-      phone: phone ?? '+91 98941 74944',
+      phone: (phone != null && phone.trim().isNotEmpty) ? phone.trim() : '',
       city: 'Tenkasi, Tamil Nadu',
       isVerified: true,
       isLoggedIn: true,

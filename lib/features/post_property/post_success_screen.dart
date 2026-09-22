@@ -61,14 +61,46 @@ class _PostSuccessScreenState extends ConsumerState<PostSuccessScreen>
               // Animated Success Title
               FadeTransition(
                 opacity: _fadeAnimation,
-                child: Text(
-                  ref.tr('post_success'),
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.h1.copyWith(fontSize: 22),
+                child: Column(
+                  children: [
+                    Text(
+                      ref.tr('post_success'),
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.h1.copyWith(fontSize: 22),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFCD34D)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 20),
+                          SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '⏳ வெயிட்டிங் ஃபார் அப்ரூவல் (Waiting for Approval)\nநிர்வாகி ஒப்புதல் அளித்ததும் உங்கள் விளம்பரம் நேரலையாகி விடும்.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF92400E),
+                                height: 1.35,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Property Preview Card
               ScaleTransition(
@@ -91,6 +123,7 @@ class _PostSuccessScreenState extends ConsumerState<PostSuccessScreen>
                             propertyType: widget.property.propertyType,
                             visualIndex: 0,
                             customImageBase64: widget.property.customImageBase64,
+                            imageUrl: widget.property.primaryImageUrl,
                             height: 180,
                             width: double.infinity,
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),

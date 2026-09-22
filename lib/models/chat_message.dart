@@ -49,6 +49,8 @@ class ChatPropertySummary {
   final String location;
   final String propertyType;
   final int areaSqFt;
+  final String? imageUrl;
+  final String? customImageBase64;
 
   const ChatPropertySummary({
     required this.id,
@@ -57,6 +59,8 @@ class ChatPropertySummary {
     required this.location,
     required this.propertyType,
     required this.areaSqFt,
+    this.imageUrl,
+    this.customImageBase64,
   });
 
   Map<String, dynamic> toMap() {
@@ -67,6 +71,8 @@ class ChatPropertySummary {
       'location': location,
       'propertyType': propertyType,
       'areaSqFt': areaSqFt,
+      'imageUrl': imageUrl,
+      'customImageBase64': customImageBase64,
     };
   }
 
@@ -78,6 +84,8 @@ class ChatPropertySummary {
       location: map['location'] ?? '',
       propertyType: map['propertyType'] ?? 'Property',
       areaSqFt: map['areaSqFt'] ?? 0,
+      imageUrl: map['imageUrl'],
+      customImageBase64: map['customImageBase64'],
     );
   }
 }

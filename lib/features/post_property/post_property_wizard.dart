@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,7 +30,7 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
   String _selectedDistrict = 'தென்காசி';
   final TextEditingController _areaLocalityController = TextEditingController(text: 'தென்காசி');
   final TextEditingController _landmarkController = TextEditingController();
-  final TextEditingController _contactPhoneController = TextEditingController(text: '9894174944');
+  final TextEditingController _contactPhoneController = TextEditingController();
   double? _latitude = 8.9594;
   double? _longitude = 77.3154;
   bool _isDetectingLocation = false;
@@ -80,7 +81,7 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
   final TextEditingController _rentAmountController = TextEditingController(text: '8500');
 
   // 5. கடை / அலுவலகம் (Shop / Office) Fields
-  String _shopSubType = 'மெயின் பஜார் கடை';
+  String _shopSubType = 'கடை (Shop)';
   String _selectedCommercialAreaType = 'Main Bazaar (மெயின் பஜார்)';
   final TextEditingController _shopAreaSqFtController = TextEditingController(text: '350');
   String _shopPowerPhase = 'Single Phase EB';
@@ -161,6 +162,13 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
     } else {
       _selectedMainCategory = 'Land';
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userProfile = ref.read(userProfileProvider);
+      final rawP = userProfile.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (rawP.isNotEmpty && (_contactPhoneController.text.isEmpty || _contactPhoneController.text == '9894174944')) {
+        _contactPhoneController.text = rawP;
+      }
+    });
     _autoGenerateTitle();
   }
 
@@ -479,34 +487,75 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.primaryLight.withValues(alpha: 0.5),
+            color: _latitude != null ? const Color(0xFFE8F5E9) : AppColors.primaryLight.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: _latitude != null ? const Color(0xFF4CAF50) : AppColors.primary.withValues(alpha: 0.3),
+              width: _latitude != null ? 1.5 : 1.0,
+            ),
           ),
           child: Row(
             children: [
-              const Icon(Icons.my_location_rounded, color: AppColors.primary, size: 20),
+              Icon(
+                _latitude != null ? Icons.check_circle_rounded : Icons.my_location_rounded,
+                color: _latitude != null ? const Color(0xFF2E7D32) : AppColors.primary,
+                size: 22,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  _latitude != null
-                      ? 'GPS லொகேஷன் இணைக்கப்பட்டது (${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)})'
-                      : 'GPS லொகேஷனை கண்டறியவும்',
-                  style: const TextStyle(color: AppColors.primaryDark, fontSize: 12.5, fontWeight: FontWeight.w600),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _latitude != null
+                          ? '✅ நேரலை GPS இணைக்கப்பட்டது'
+                          : '📍 மொபைல் GPS இருப்பிடத்தைப் பெறுக',
+                      style: TextStyle(
+                        color: _latitude != null ? const Color(0xFF1B5E20) : AppColors.primaryDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (_latitude != null)
+                      Text(
+                        '${_areaLocalityController.text.isNotEmpty ? "${_areaLocalityController.text} • " : ""}${_latitude!.toStringAsFixed(4)}° N, ${_longitude!.toStringAsFixed(4)}° E',
+                        style: const TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
+                    else
+                      const Text(
+                        'மொபைல் GPS அனுமதி கேட்டு துல்லியமாக இணைக்கும்',
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                      ),
+                  ],
                 ),
               ),
-              TextButton(
-                onPressed: _detectLocation,
+              TextButton.icon(
+                onPressed: _isDetectingLocation ? null : _detectLocation,
                 style: TextButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: _latitude != null ? const Color(0xFF2E7D32) : AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: _isDetectingLocation
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('GPS பெறுக', style: TextStyle(fontSize: 11)),
+                icon: _isDetectingLocation
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(
+                        _latitude != null ? Icons.refresh_rounded : Icons.gps_fixed_rounded,
+                        size: 14,
+                      ),
+                label: Text(
+                  _latitude != null ? 'மீண்டும்' : 'GPS பெறுக',
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -1056,89 +1105,8 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
         const SizedBox(height: 20),
 
-        // 4. வங்கி கடன் வசதி (Finance: 1 இருக்கு, 2 இல்லை)
-        _buildSectionTitle('4. வங்கி கடன் வசதி (Bank Loan / Finance)*'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _isBankLoanAvailable = true),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: _isBankLoanAvailable ? const Color(0xFFECFDF5) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _isBankLoanAvailable ? const Color(0xFF047857) : AppColors.border,
-                      width: _isBankLoanAvailable ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isBankLoanAvailable ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                        color: _isBankLoanAvailable ? const Color(0xFF047857) : Colors.grey,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('① இருக்கு', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF047857))),
-                            Text('கடன் வசதி உண்டு (Loan OK)', style: TextStyle(fontSize: 10.5, color: Color(0xFF065F46))),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _isBankLoanAvailable = false),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: !_isBankLoanAvailable ? Colors.grey.shade100 : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: !_isBankLoanAvailable ? Colors.grey.shade700 : AppColors.border,
-                      width: !_isBankLoanAvailable ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        !_isBankLoanAvailable ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                        color: !_isBankLoanAvailable ? Colors.grey.shade800 : Colors.grey,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('② இல்லை', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.black87)),
-                            Text('நேரடி ரொக்கம் (No Loan)', style: TextStyle(fontSize: 10.5, color: Colors.black54)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        // 5. Land நிலை & முக்கிய வசதிகள் (போர்வெல், EB இணைப்பு, ரோடு, வேலி...)
-        _buildSectionTitle('5. நில நிலை & முக்கிய வசதிகள் (போர்வெல், EB இணைப்பு, இதர)*'),
+        // 4. Land நிலை & முக்கிய வசதிகள் (போர்வெல், EB இணைப்பு, ரோடு, வேலி...)
+        _buildSectionTitle('4. நில நிலை & முக்கிய வசதிகள் (போர்வெல், EB இணைப்பு, இதர)*'),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -1747,47 +1715,84 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
         const SizedBox(height: 20),
 
-        _buildSectionTitle('உள் வசதிகள் & நிலை (Shop Amenities & Status)'),
-        const SizedBox(height: 10),
+        _buildSectionTitle('மின் இணைப்பு (EB Connection)*'),
+        const SizedBox(height: 8),
 
-        // EB Phase selection
+        // EB Phase selection (EB உண்டு vs EB இல்லை)
         Row(
           children: [
-            _buildYesNoToggle(
-              label: 'Single Phase EB',
-              isSelected: _shopPowerPhase == 'Single Phase EB',
-              onTap: () => setState(() => _shopPowerPhase = 'Single Phase EB'),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _shopPowerPhase = 'Single Phase EB'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: _shopPowerPhase != 'EB இல்லை' ? const Color(0xFFECFDF5) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _shopPowerPhase != 'EB இல்லை' ? const Color(0xFF047857) : AppColors.border,
+                      width: _shopPowerPhase != 'EB இல்லை' ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _shopPowerPhase != 'EB இல்லை' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        color: _shopPowerPhase != 'EB இல்லை' ? const Color(0xFF047857) : Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('① EB உண்டு', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF047857))),
+                            Text('மின் இணைப்பு உள்ளது', style: TextStyle(fontSize: 10.5, color: Color(0xFF065F46))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
-            _buildYesNoToggle(
-              label: '3-Phase EB',
-              isSelected: _shopPowerPhase == '3 Phase EB',
-              onTap: () => setState(() => _shopPowerPhase = '3 Phase EB'),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _shopPowerPhase = 'EB இல்லை'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: _shopPowerPhase == 'EB இல்லை' ? Colors.grey.shade100 : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _shopPowerPhase == 'EB இல்லை' ? Colors.grey.shade700 : AppColors.border,
+                      width: _shopPowerPhase == 'EB இல்லை' ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _shopPowerPhase == 'EB இல்லை' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        color: _shopPowerPhase == 'EB இல்லை' ? Colors.grey.shade800 : Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('② EB இல்லை', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.black87)),
+                            Text('மின் இணைப்பு இல்லை', style: TextStyle(fontSize: 10.5, color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-
-        // Switches for Fan, Table, Water, Shutter
-        _buildCheckboxTile(
-          title: 'ஃபேன் வசதி (Fan Available)',
-          value: _shopHasFan,
-          onChanged: (val) => setState(() => _shopHasFan = val ?? false),
-        ),
-        _buildCheckboxTile(
-          title: 'மேஜை / பர்னிச்சர் (Table / Furniture)',
-          value: _shopHasTable,
-          onChanged: (val) => setState(() => _shopHasTable = val ?? false),
-        ),
-        _buildCheckboxTile(
-          title: 'தண்ணீர் வசதி (Drinking Water Supply)',
-          value: _shopHasWater,
-          onChanged: (val) => setState(() => _shopHasWater = val ?? false),
-        ),
-        _buildCheckboxTile(
-          title: 'ரோலிங் ஷட்டர் / கண்ணாடி கதவு (Shutter / Glass Door)',
-          value: _shopHasShutter,
-          onChanged: (val) => setState(() => _shopHasShutter = val ?? false),
         ),
 
         const SizedBox(height: 20),
@@ -2529,7 +2534,8 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
       ];
     } else if (_selectedMainCategory == 'Shop') {
       subCats = [
-        {'id': 'மெயின் பஜார் கடை', 'ta': 'மெயின் பஜார் கடை', 'en': 'Main Bazaar Shop', 'icon': Icons.storefront_rounded, 'color': const Color(0xFFD97706)},
+        {'id': 'கடை (Shop)', 'ta': 'கடை (Shop)', 'en': 'Shop', 'icon': Icons.storefront_rounded, 'color': const Color(0xFFD97706)},
+        {'id': 'மெயின் பஜார் கடை', 'ta': 'மெயின் பஜார் கடை', 'en': 'Main Bazaar Shop', 'icon': Icons.storefront_rounded, 'color': const Color(0xFFB45309)},
         {'id': 'பஸ் ஸ்டாண்ட் / ஜங்ஷன் கடை', 'ta': 'பஸ் ஸ்டாண்ட் கடை', 'en': 'Bus Stand Shop', 'icon': Icons.directions_bus_rounded, 'color': const Color(0xFFB45309)},
         {'id': 'வணிக வளாகம்', 'ta': 'வணிக வளாகம்', 'en': 'Commercial Complex', 'icon': Icons.business_rounded, 'color': const Color(0xFF78350F)},
         {'id': 'அலுவலக இடம்', 'ta': 'அலுவலக இடம்', 'en': 'Office Space', 'icon': Icons.desktop_windows_rounded, 'color': const Color(0xFF0284C7)},
@@ -2729,25 +2735,6 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
     );
   }
 
-  Widget _buildCheckboxTile({required String title, required bool value, required ValueChanged<bool?> onChanged}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: value ? AppColors.primary : AppColors.border),
-      ),
-      child: CheckboxListTile(
-        title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-        value: value,
-        activeColor: AppColors.primary,
-        dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-        controlAffinity: ListTileControlAffinity.leading,
-        onChanged: onChanged,
-      ),
-    );
-  }
 
   InputDecoration _inputDecoration({required String hint, IconData? prefixIcon, Widget? suffix, String? suffixText}) {
     return InputDecoration(
@@ -2801,39 +2788,58 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
               ),
               const SizedBox(width: 12),
             ],
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _onNextOrSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isLastStep ? Colors.green.shade700 : AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                ),
-                child: Text(
-                  isLastStep ? 'விளம்பரம் பதிவிடு (Post Property)' : 'அடுத்து (Next) →',
-                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _onNextOrSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isLastStep ? Colors.green.shade700 : AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : Text(
+                          isLastStep ? 'விளம்பரம் பதிவிடு (Post Property)' : 'அடுத்து (Next) →',
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
   }
 
+  bool _isSubmitting = false;
+
   void _onNextOrSubmit() {
+    if (_isSubmitting) return;
     if (_currentStep < _totalSteps - 1) {
       setState(() => _currentStep++);
     } else {
+      if (_customImageBase64 == null || _customImageBase64!.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ தயவுசெய்து சொத்தின் புகைப்படத்தை பதிவேற்றவும் (Photo is mandatory)'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       _submitProperty();
     }
   }
 
   Future<void> _pickPhoto() async {
     setState(() => _isPickingImage = true);
-    final result = await ImagePickerService.pickFromGallery();
+    final result = await ImagePickerService.pickFromGallery(maxWidth: 1024, quality: 75);
     if (result != null) {
       setState(() {
         _customImageBase64 = result.base64Data;
@@ -2844,7 +2850,8 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
   Future<void> _detectLocation() async {
     setState(() => _isDetectingLocation = true);
-    final loc = await LocationService.getCurrentLiveLocation();
+    final loc = await LocationService.getCurrentLiveLocation(context: context);
+    if (!mounted) return;
     setState(() {
       _latitude = loc.latitude;
       _longitude = loc.longitude;
@@ -2852,13 +2859,60 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
         _areaLocalityController.text = loc.estimatedArea;
       }
       if (loc.estimatedCity.isNotEmpty) {
-        _selectedDistrict = loc.estimatedCity;
+        if (_districts.contains(loc.estimatedCity)) {
+          _selectedDistrict = loc.estimatedCity;
+        } else {
+          _selectedDistrict = 'Tenkasi';
+        }
+      }
+      if (_landmarkController.text.isEmpty && loc.estimatedArea.isNotEmpty) {
+        _landmarkController.text = '${loc.estimatedArea} மெயின் ரோடு';
       }
       _isDetectingLocation = false;
     });
+
+    if (loc.isLiveGps) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '✅ நேரலை GPS பெறப்பட்டது: ${loc.estimatedArea} (${loc.formattedCoordinates})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF2E7D32),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (loc.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠️ ${loc.error}'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _submitProperty() async {
+    if (_customImageBase64 == null || _customImageBase64!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ தயவுசெய்து சொத்தின் புகைப்படத்தை பதிவேற்றவும் (Photo is mandatory)'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final now = DateTime.now();
     final propId = 'user_prop_${now.millisecondsSinceEpoch}';
 
@@ -2896,6 +2950,13 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
 
     final fullLocation = '${_areaLocalityController.text}, $_selectedDistrict';
 
+    final currentUser = ref.read(userProfileProvider);
+    final userAgentPhone = _contactPhoneController.text.trim().isNotEmpty ? _contactPhoneController.text.trim() : currentUser.phone;
+    final userAgentEmail = currentUser.email.isNotEmpty ? currentUser.email : 'user@tenkasidreams.com';
+    final userAgentName = currentUser.name.isNotEmpty ? currentUser.name : '${_selectedPosterType.contains('Owner') ? 'உரிமையாளர்' : _selectedPosterType} (You)';
+
+
+
     final newProperty = Property(
       id: propId,
       title: title,
@@ -2918,9 +2979,9 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
       approvalType: _selectedMainCategory == 'House'
           ? (_houseSubType.contains('அப்ரூவல்') ? 'Approved' : (_houseSubType.contains('Un-Approved') ? 'Unapproved' : 'Natham Patta'))
           : (_selectedMainCategory == 'Land' ? _selectedApproval : _selectedAptApproval),
-      isBankLoanAvailable: _selectedMainCategory == 'House' ? (_houseSubType.contains('Finance') || _isBankLoanAvailable) : _isBankLoanAvailable,
+      isBankLoanAvailable: _selectedMainCategory == 'House' ? (_houseSubType.contains('Finance') || _isBankLoanAvailable) : false,
       isPriceNegotiable: _isPriceNegotiable,
-      contactPhone: _contactPhoneController.text,
+      contactPhone: userAgentPhone,
       facing: _selectedFacing,
       landmark: _landmarkController.text,
       latitude: _latitude,
@@ -2928,10 +2989,10 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
       customImageBase64: _customImageBase64,
       waterSource: _selectedWaterSource,
       hasLift: _hasLift,
-      hasTrees: _hasTrees,
-      treesDetails: _hasTrees ? _treesDetailsController.text : null,
-      hasIncome: _hasIncome,
-      incomeDetails: _hasIncome ? _incomeDetailsController.text : null,
+      hasTrees: _selectedMainCategory == 'Farmland' ? _hasTrees : false,
+      treesDetails: (_selectedMainCategory == 'Farmland' && _hasTrees) ? _treesDetailsController.text : null,
+      hasIncome: _selectedMainCategory == 'Farmland' ? _hasIncome : false,
+      incomeDetails: (_selectedMainCategory == 'Farmland' && _hasIncome) ? _incomeDetailsController.text : null,
       rentalSubType: _selectedMainCategory == 'House'
           ? _houseSubType
           : (_selectedMainCategory == 'Land'
@@ -2951,11 +3012,11 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
       hasShutter: _selectedMainCategory == 'Shop' ? _shopHasShutter : false,
       powerPhase: _selectedMainCategory == 'Shop' ? _shopPowerPhase : null,
       agent: Agent(
-        id: 'agent_user',
-        name: '${_selectedPosterType.contains('Owner') ? 'உரிமையாளர்' : _selectedPosterType} (You)',
+        id: 'agent_${userAgentPhone.isNotEmpty ? userAgentPhone : (currentUser.email.isNotEmpty ? currentUser.email : 'user')}',
+        name: userAgentName,
         agencyName: 'Tenkasi Dreams Verified',
-        phone: _contactPhoneController.text,
-        email: 'user.seller@gmail.com',
+        phone: userAgentPhone,
+        email: userAgentEmail,
         avatarKey: 'avatar_user',
         rating: 5.0,
         reviewsCount: 1,
@@ -2965,11 +3026,13 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
         about: 'Direct verified owner specializing in Tenkasi real estate.',
       ),
       postedDate: now,
-      status: 'active',
+      status: 'pending',
+      isPremium: (_selectedPosterType == 'Owner'),
       isUserPosted: true,
     );
 
     await ref.read(propertiesProvider.notifier).addProperty(newProperty);
+    unawaited(ref.read(propertiesProvider.notifier).syncWithServer());
 
     if (mounted) {
       Navigator.pushReplacement(
@@ -2981,3 +3044,4 @@ class _PostPropertyWizardState extends ConsumerState<PostPropertyWizard> {
     }
   }
 }
+

@@ -49,11 +49,18 @@ switch ($method) {
                 $where = [];
                 $params = [];
 
-                if (!empty($sellerPhone)) {
-                    // Match seller phone (ignore spaces and formatting)
-                    $cleanPhone = preg_replace('/[^0-9]/', '', $sellerPhone);
+                $sellerPhoneClean = !empty($sellerPhone) ? preg_replace('/[^0-9]/', '', $sellerPhone) : '';
+                if (!empty($sellerPhoneClean)) {
                     $where[] = "(REPLACE(REPLACE(REPLACE(seller_phone, ' ', ''), '+', ''), '-', '') LIKE ?)";
-                    $params[] = '%' . $cleanPhone . '%';
+                    $params[] = '%' . $sellerPhoneClean . '%';
+                } elseif (isset($_GET['seller_phone'])) {
+                    sendResponse([
+                        'success' => true,
+                        'count' => 0,
+                        'activities' => [],
+                        'stats' => ['total_activities' => 0]
+                    ]);
+                    break;
                 }
 
                 if (!empty($sellerId)) {
@@ -61,15 +68,25 @@ switch ($method) {
                     $params[] = $sellerId;
                 }
 
-                if (!empty($userPhone)) {
-                    $cleanUserPhone = preg_replace('/[^0-9]/', '', $userPhone);
+                $userPhoneClean = !empty($userPhone) ? preg_replace('/[^0-9]/', '', $userPhone) : '';
+                if (!empty($userPhoneClean) && !empty($userEmail)) {
+                    $where[] = "((REPLACE(REPLACE(REPLACE(user_phone, ' ', ''), '+', ''), '-', '') LIKE ?) OR user_email = ?)";
+                    $params[] = '%' . $userPhoneClean . '%';
+                    $params[] = $userEmail;
+                } elseif (!empty($userPhoneClean)) {
                     $where[] = "(REPLACE(REPLACE(REPLACE(user_phone, ' ', ''), '+', ''), '-', '') LIKE ?)";
-                    $params[] = '%' . $cleanUserPhone . '%';
-                }
-
-                if (!empty($userEmail)) {
+                    $params[] = '%' . $userPhoneClean . '%';
+                } elseif (!empty($userEmail)) {
                     $where[] = "user_email = ?";
                     $params[] = $userEmail;
+                } elseif (isset($_GET['user_phone']) || isset($_GET['user_email'])) {
+                    sendResponse([
+                        'success' => true,
+                        'count' => 0,
+                        'activities' => [],
+                        'stats' => ['total_activities' => 0]
+                    ]);
+                    break;
                 }
 
                 if (!empty($userId)) {

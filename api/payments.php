@@ -241,6 +241,10 @@ switch ($method) {
 
         if ($action === 'create_order' || $action === 'create-order') {
             $amount = isset($input['amount']) ? (int)$input['amount'] : 0;
+            // If amount is passed in Rupees (e.g. 10 or 30), convert to paise (10 * 100 = 1000 paise)
+            if ($amount > 0 && $amount < 100) {
+                $amount = $amount * 100;
+            }
             if ($amount < 100) {
                 sendResponse(['success' => false, 'error' => 'Invalid amount. Minimum amount is 100 paise (₹1.00).'], 400);
             }

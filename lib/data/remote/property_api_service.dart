@@ -17,15 +17,16 @@ class PropertyApiService {
   /// Fetch all properties from the remote server
   Future<List<Property>> fetchProperties() async {
     try {
-      final uri = Uri.parse('$_baseUrl/properties');
+      final uri = Uri.parse('$_baseUrl/properties?all=true');
       final response = await http
           .get(uri, headers: _headers)
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final dynamic decoded = jsonDecode(response.body);
-        final List<dynamic> list =
-            decoded is List ? decoded : (decoded['data'] ?? []);
+        final List<dynamic> list = decoded is List
+            ? decoded
+            : (decoded['properties'] ?? decoded['data'] ?? []);
         return list.map((item) => Property.fromMap(item as Map<String, dynamic>)).toList();
       } else {
         throw Exception('Server returned code ${response.statusCode}: ${response.body}');
@@ -33,6 +34,42 @@ class PropertyApiService {
     } catch (e) {
       debugPrint('PropertyApiService fetchProperties error: $e');
       rethrow;
+    }
+  }
+
+  /// Fetch all buyer requirements (மக்களின் தேவை) from remote server
+  Future<List<Map<String, dynamic>>> fetchBuyerRequirements() async {
+    try {
+      final uri = Uri.parse('$_baseUrl/requirements.php');
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = jsonDecode(response.body);
+        final List<dynamic> list = decoded is List
+            ? decoded
+            : (decoded['requirements'] ?? decoded['data'] ?? []);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('PropertyApiService fetchBuyerRequirements error: $e');
+      return [];
+    }
+  }
+
+  /// Post a new buyer requirement to remote server
+  Future<bool> createBuyerRequirement(Map<String, dynamic> reqData) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/requirements.php');
+      final response = await http
+          .post(uri, headers: _headers, body: jsonEncode(reqData))
+          .timeout(const Duration(seconds: 6));
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('PropertyApiService createBuyerRequirement error: $e');
+      return false;
     }
   }
 
